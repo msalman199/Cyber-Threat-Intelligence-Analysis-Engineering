@@ -1,0 +1,25 @@
+# Operation Aurora Indicators of Compromise
+
+## Domains
+ratteam.net
+trendmicr0.com
+micr0s0ft-update.com
+
+## IP Addresses
+209.191.93.52
+74.86.118.23
+98.126.158.42
+
+## File Hashes (MD5)
+4cfe5b89c8e21a4c0b0d0f2e8a3b7c9d
+7f8e9a1b2c3d4e5f6789abcdef012345
+a1b2c3d4e5f6789012345678901234ab
+
+## Registry Keys
+HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run\GoogleUpdate
+HKCU\Software\Microsoft\Internet Explorer\Main\FeatureControl
+
+## File Paths
+%TEMP%\GoogleUpdate.exe
+%APPDATA%\Adobe\update.exe
+C:\Windows\system32\drivers\etc\hosts
