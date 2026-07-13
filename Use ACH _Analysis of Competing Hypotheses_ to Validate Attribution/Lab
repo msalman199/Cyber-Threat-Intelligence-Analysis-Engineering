@@ -1,0 +1,630 @@
+ Use ACH (Analysis of Competing Hypotheses) to Validate Attribution
+Learning Objectives
+By completing this lab, you will:
+
+Apply the ACH methodology to evaluate threat actor attribution hypotheses
+Analyze evidence systematically to validate or refute attribution claims
+Document findings using structured analytical techniques
+Make data-driven conclusions about threat actor identity
+Prerequisites
+Basic understanding of cybersecurity concepts
+Familiarity with Linux command line
+Knowledge of threat intelligence fundamentals
+Understanding of attack indicators and TTPs
+Lab Environment
+Al Nafi provides Linux-based cloud machines for this lab. Click Start Lab to access your dedicated environment. The provided Linux machine is bare metal with no pre-installed tools, so you will install required tools during the lab.
+
+Task 1: Set Up ACH Analysis Environment
+Subtask 1.1: Install Required Tools
+# Update system packages
+sudo apt update && sudo apt upgrade -y
+
+# Install Python and required libraries
+sudo apt install python3 python3-pip git -y
+
+# Install analysis tools
+pip3 install pandas numpy matplotlib seaborn jupyter
+
+# Create working directory
+mkdir ~/ach_lab && cd ~/ach_lab
+Subtask 1.2: Create ACH Framework Structure
+# Create directory structure
+mkdir -p {data,analysis,reports,templates}
+
+# Create ACH template file
+cat > templates/ach_template.py << 'EOF'
+import pandas as pd
+import numpy as np
+
+class ACHAnalysis:
+    def __init__(self):
+        self.hypotheses = []
+        self.evidence = []
+        self.matrix = None
+        
+    def add_hypothesis(self, name, description):
+        self.hypotheses.append({'name': name, 'description': description})
+        
+    def add_evidence(self, name, description, reliability):
+        self.evidence.append({
+            'name': name, 
+            'description': description,
+            'reliability': reliability
+        })
+        
+    def create_matrix(self):
+        rows = len(self.evidence)
+        cols = len(self.hypotheses)
+        self.matrix = pd.DataFrame(
+            index=[e['name'] for e in self.evidence],
+            columns=[h['name'] for h in self.hypotheses]
+        )
+        return self.matrix
+        
+    def calculate_scores(self):
+        if self.matrix is None:
+            return None
+        
+        scores = {}
+        for hypothesis in self.matrix.columns:
+            # Calculate inconsistency score
+            inconsistent = (self.matrix[hypothesis] == '--').sum()
+            consistent = (self.matrix[hypothesis] == '++').sum()
+            neutral = (self.matrix[hypothesis] == 'N').sum()
+            
+            # Weight by evidence reliability
+            weighted_score = 0
+            for idx, evidence in enumerate(self.evidence):
+                cell_value = self.matrix.iloc[idx][hypothesis]
+                reliability = evidence['reliability']
+                
+                if cell_value == '++':
+                    weighted_score += 2 * reliability
+                elif cell_value == '+':
+                    weighted_score += 1 * reliability
+                elif cell_value == '--':
+                    weighted_score -= 2 * reliability
+                elif cell_value == '-':
+                    weighted_score -= 1 * reliability
+                    
+            scores[hypothesis] = {
+                'inconsistent_count': inconsistent,
+                'consistent_count': consistent,
+                'weighted_score': weighted_score
+            }
+            
+        return scores
+EOF
+Task 2: Collect Competing Hypotheses for Attack Attribution
+Subtask 2.1: Create Case Study Dataset
+# Create sample attack scenario data
+cat > data/attack_scenario.json << 'EOF'
+{
+  "incident_id": "INC-2024-001",
+  "attack_summary": "Advanced persistent threat targeting financial sector",
+  "initial_indicators": {
+    "malware_family": "Custom RAT",
+    "c2_infrastructure": "Multiple domains with DGA",
+    "attack_vectors": ["Spear phishing", "Watering hole"],
+    "target_sectors": ["Financial services", "Government"],
+    "geographic_focus": "North America, Europe"
+  },
+  "technical_indicators": {
+    "file_hashes": ["a1b2c3d4e5f6", "f6e5d4c3b2a1"],
+    "domains": ["evil-bank[.]com", "secure-update[.]net"],
+    "ip_addresses": ["192.168.1.100", "10.0.0.50"],
+    "ttps": ["T1566.001", "T1071.001", "T1055"]
+  }
+}
+EOF
+
+# Create competing hypotheses
+cat > data/hypotheses.json << 'EOF'
+{
+  "hypotheses": [
+    {
+      "name": "APT29",
+      "description": "Russian state-sponsored group known for financial sector targeting",
+      "known_ttps": ["T1566.001", "T1071.001", "T1027"],
+      "typical_targets": ["Government", "Financial"],
+      "geographic_origin": "Russia"
+    },
+    {
+      "name": "Lazarus",
+      "description": "North Korean group with history of financial institution attacks",
+      "known_ttps": ["T1566.001", "T1055", "T1083"],
+      "typical_targets": ["Financial", "Cryptocurrency"],
+      "geographic_origin": "North Korea"
+    },
+    {
+      "name": "FIN7",
+      "description": "Financially motivated cybercriminal group",
+      "known_ttps": ["T1566.001", "T1071.001", "T1055"],
+      "typical_targets": ["Retail", "Financial", "Hospitality"],
+      "geographic_origin": "Unknown"
+    },
+    {
+      "name": "Unknown Actor",
+      "description": "Previously unidentified threat actor",
+      "known_ttps": ["Variable"],
+      "typical_targets": ["Variable"],
+      "geographic_origin": "Unknown"
+    }
+  ]
+}
+EOF
+Subtask 2.2: Define Evidence Categories
+# Create evidence collection template
+cat > data/evidence_items.json << 'EOF'
+{
+  "evidence": [
+    {
+      "name": "Malware Code Similarity",
+      "description": "Code reuse patterns matching known actor toolsets",
+      "type": "Technical",
+      "reliability": 0.8
+    },
+    {
+      "name": "Infrastructure Overlap",
+      "description": "C2 infrastructure previously used by known actors",
+      "type": "Infrastructure",
+      "reliability": 0.7
+    },
+    {
+      "name": "TTP Matching",
+      "description": "Tactics, techniques, and procedures alignment",
+      "type": "Behavioral",
+      "reliability": 0.9
+    },
+    {
+      "name": "Target Selection",
+      "description": "Victim profile matching actor preferences",
+      "type": "Strategic",
+      "reliability": 0.6
+    },
+    {
+      "name": "Timing Patterns",
+      "description": "Attack timing consistent with actor's timezone",
+      "type": "Temporal",
+      "reliability": 0.5
+    },
+    {
+      "name": "Language Artifacts",
+      "description": "Language indicators in malware or communications",
+      "type": "Linguistic",
+      "reliability": 0.7
+    },
+    {
+      "name": "Operational Security",
+      "description": "OPSEC patterns matching known actor behavior",
+      "type": "Operational",
+      "reliability": 0.8
+    }
+  ]
+}
+EOF
+Task 3: Use ACH to Evaluate and Validate Each Hypothesis
+Subtask 3.1: Implement ACH Analysis Script
+# Create main analysis script
+cat > analysis/ach_analysis.py << 'EOF'
+#!/usr/bin/env python3
+
+import json
+import pandas as pd
+import sys
+import os
+sys.path.append('../templates')
+from ach_template import ACHAnalysis
+
+def load_data():
+    """Load case study data"""
+    with open('../data/hypotheses.json', 'r') as f:
+        hypotheses_data = json.load(f)
+    
+    with open('../data/evidence_items.json', 'r') as f:
+        evidence_data = json.load(f)
+        
+    with open('../data/attack_scenario.json', 'r') as f:
+        scenario_data = json.load(f)
+        
+    return hypotheses_data, evidence_data, scenario_data
+
+def setup_ach_analysis():
+    """Initialize ACH analysis with hypotheses and evidence"""
+    hypotheses_data, evidence_data, scenario_data = load_data()
+    
+    ach = ACHAnalysis()
+    
+    # Add hypotheses
+    for h in hypotheses_data['hypotheses']:
+        ach.add_hypothesis(h['name'], h['description'])
+    
+    # Add evidence
+    for e in evidence_data['evidence']:
+        ach.add_evidence(e['name'], e['description'], e['reliability'])
+    
+    return ach, hypotheses_data, evidence_data, scenario_data
+
+def populate_matrix(ach):
+    """Populate ACH matrix with evidence evaluations"""
+    matrix = ach.create_matrix()
+    
+    # Evidence evaluation against each hypothesis
+    # ++ = Strongly supports, + = Supports, N = Neutral, - = Contradicts, -- = Strongly contradicts
+    
+    evaluations = {
+        'Malware Code Similarity': {'APT29': '+', 'Lazarus': '++', 'FIN7': '+', 'Unknown Actor': 'N'},
+        'Infrastructure Overlap': {'APT29': '-', 'Lazarus': '+', 'FIN7': '++', 'Unknown Actor': 'N'},
+        'TTP Matching': {'APT29': '++', 'Lazarus': '++', 'FIN7': '++', 'Unknown Actor': '+'},
+        'Target Selection': {'APT29': '++', 'Lazarus': '++', 'FIN7': '++', 'Unknown Actor': '+'},
+        'Timing Patterns': {'APT29': '+', 'Lazarus': '-', 'FIN7': 'N', 'Unknown Actor': 'N'},
+        'Language Artifacts': {'APT29': 'N', 'Lazarus': '+', 'FIN7': 'N', 'Unknown Actor': 'N'},
+        'Operational Security': {'APT29': '+', 'Lazarus': '+', 'FIN7': '++', 'Unknown Actor': 'N'}
+    }
+    
+    for evidence, hypothesis_scores in evaluations.items():
+        for hypothesis, score in hypothesis_scores.items():
+            matrix.loc[evidence, hypothesis] = score
+    
+    ach.matrix = matrix
+    return matrix
+
+def main():
+    print("=== ACH Analysis for Threat Attribution ===\n")
+    
+    # Setup analysis
+    ach, hypotheses_data, evidence_data, scenario_data = setup_ach_analysis()
+    
+    # Populate matrix
+    matrix = populate_matrix(ach)
+    
+    print("ACH Matrix:")
+    print(matrix)
+    print("\n")
+    
+    # Calculate scores
+    scores = ach.calculate_scores()
+    
+    print("Hypothesis Evaluation Results:")
+    print("-" * 50)
+    
+    for hypothesis, score_data in scores.items():
+        print(f"\n{hypothesis}:")
+        print(f"  Inconsistent Evidence Count: {score_data['inconsistent_count']}")
+        print(f"  Consistent Evidence Count: {score_data['consistent_count']}")
+        print(f"  Weighted Score: {score_data['weighted_score']:.2f}")
+    
+    # Rank hypotheses
+    ranked = sorted(scores.items(), key=lambda x: x[1]['weighted_score'], reverse=True)
+    
+    print(f"\nHypothesis Ranking (by weighted score):")
+    print("-" * 40)
+    for i, (hypothesis, score_data) in enumerate(ranked, 1):
+        print(f"{i}. {hypothesis}: {score_data['weighted_score']:.2f}")
+    
+    # Save results
+    results = {
+        'matrix': matrix.to_dict(),
+        'scores': scores,
+        'ranking': [(h, s['weighted_score']) for h, s in ranked]
+    }
+    
+    with open('../reports/ach_results.json', 'w') as f:
+        json.dump(results, f, indent=2)
+    
+    print(f"\nResults saved to reports/ach_results.json")
+
+if __name__ == "__main__":
+    main()
+EOF
+
+chmod +x analysis/ach_analysis.py
+Subtask 3.2: Run ACH Analysis
+# Execute ACH analysis
+cd analysis
+python3 ach_analysis.py
+Subtask 3.3: Generate Detailed Report
+# Create comprehensive reporting script
+cat > analysis/generate_report.py << 'EOF'
+#!/usr/bin/env python3
+
+import json
+import pandas as pd
+from datetime import datetime
+
+def generate_detailed_report():
+    """Generate comprehensive ACH analysis report"""
+    
+    # Load results
+    with open('../reports/ach_results.json', 'r') as f:
+        results = json.load(f)
+    
+    with open('../data/hypotheses.json', 'r') as f:
+        hypotheses_data = json.load(f)
+    
+    with open('../data/evidence_items.json', 'r') as f:
+        evidence_data = json.load(f)
+    
+    report = []
+    report.append("# ACH Analysis Report: Threat Actor Attribution")
+    report.append(f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    report.append("")
+    
+    # Executive Summary
+    report.append("## Executive Summary")
+    report.append("")
+    top_hypothesis = results['ranking'][0]
+    report.append(f"Based on ACH analysis, **{top_hypothesis[0]}** is the most likely attribution ")
+    report.append(f"with a weighted score of {top_hypothesis[1]:.2f}.")
+    report.append("")
+    
+    # Methodology
+    report.append("## Methodology")
+    report.append("")
+    report.append("The Analysis of Competing Hypotheses (ACH) method was used to evaluate ")
+    report.append("threat actor attribution by:")
+    report.append("1. Identifying competing hypotheses")
+    report.append("2. Collecting relevant evidence")
+    report.append("3. Evaluating evidence against each hypothesis")
+    report.append("4. Calculating weighted scores based on evidence reliability")
+    report.append("")
+    
+    # Hypotheses Overview
+    report.append("## Competing Hypotheses")
+    report.append("")
+    for h in hypotheses_data['hypotheses']:
+        report.append(f"**{h['name']}:** {h['description']}")
+    report.append("")
+    
+    # Evidence Analysis
+    report.append("## Evidence Analysis")
+    report.append("")
+    
+    # Create matrix display
+    matrix_df = pd.DataFrame(results['matrix'])
+    report.append("### Evidence vs Hypothesis Matrix")
+    report.append("```")
+    report.append(matrix_df.to_string())
+    report.append("```")
+    report.append("")
+    
+    report.append("**Legend:**")
+    report.append("- `++` = Strongly supports hypothesis")
+    report.append("- `+` = Supports hypothesis")  
+    report.append("- `N` = Neutral/No impact")
+    report.append("- `-` = Contradicts hypothesis")
+    report.append("- `--` = Strongly contradicts hypothesis")
+    report.append("")
+    
+    # Detailed Results
+    report.append("## Detailed Results")
+    report.append("")
+    
+    for i, (hypothesis, score) in enumerate(results['ranking'], 1):
+        score_data = results['scores'][hypothesis]
+        report.append(f"### {i}. {hypothesis}")
+        report.append(f"- **Weighted Score:** {score:.2f}")
+        report.append(f"- **Supporting Evidence:** {score_data['consistent_count']} items")
+        report.append(f"- **Contradicting Evidence:** {score_data['inconsistent_count']} items")
+        report.append("")
+    
+    # Key Findings
+    report.append("## Key Findings")
+    report.append("")
+    
+    # Identify strongest evidence
+    strongest_evidence = []
+    for evidence_name, hypothesis_scores in results['matrix'].items():
+        for hypothesis, score in hypothesis_scores.items():
+            if score in ['++', '--']:
+                strongest_evidence.append((evidence_name, hypothesis, score))
+    
+    report.append("### Strongest Evidence Indicators:")
+    for evidence, hypothesis, score in strongest_evidence:
+        direction = "supports" if score == '++' else "contradicts"
+        report.append(f"- **{evidence}** strongly {direction} **{hypothesis}**")
+    report.append("")
+    
+    # Recommendations
+    report.append("## Recommendations")
+    report.append("")
+    report.append("1. **Primary Attribution:** Focus investigation on top-ranked hypothesis")
+    report.append("2. **Additional Evidence:** Collect more data for low-reliability evidence items")
+    report.append("3. **Alternative Scenarios:** Consider combination of actors or false flag operations")
+    report.append("4. **Confidence Level:** Assess overall confidence based on evidence quality")
+    report.append("")
+    
+    # Save report
+    with open('../reports/detailed_report.md', 'w') as f:
+        f.write('\n'.join(report))
+    
+    print("Detailed report generated: reports/detailed_report.md")
+    
+    # Display summary
+    print("\n=== ACH Analysis Summary ===")
+    print(f"Top Attribution: {results['ranking'][0][0]} (Score: {results['ranking'][0][1]:.2f})")
+    print(f"Evidence Items Analyzed: {len(results['matrix'])}")
+    print(f"Hypotheses Evaluated: {len(results['ranking'])}")
+
+if __name__ == "__main__":
+    generate_detailed_report()
+EOF
+
+chmod +x analysis/generate_report.py
+Task 4: Draw Conclusions and Document Findings
+Subtask 4.1: Generate Final Report
+# Run report generation
+cd analysis
+python3 generate_report.py
+
+# View the generated report
+cd ../reports
+cat detailed_report.md
+Subtask 4.2: Create Confidence Assessment
+# Create confidence assessment tool
+cat > analysis/confidence_assessment.py << 'EOF'
+#!/usr/bin/env python3
+
+import json
+import statistics
+
+def assess_confidence():
+    """Assess confidence level in attribution conclusion"""
+    
+    with open('../reports/ach_results.json', 'r') as f:
+        results = json.load(f)
+    
+    with open('../data/evidence_items.json', 'r') as f:
+        evidence_data = json.load(f)
+    
+    # Calculate confidence metrics
+    scores = [score for _, score in results['ranking']]
+    score_spread = max(scores) - min(scores)
+    
+    # Evidence reliability assessment
+    reliabilities = [e['reliability'] for e in evidence_data['evidence']]
+    avg_reliability = statistics.mean(reliabilities)
+    
+    # Consistency check
+    top_hypothesis = results['ranking'][0][0]
+    top_score_data = results['scores'][top_hypothesis]
+    consistency_ratio = top_score_data['consistent_count'] / (
+        top_score_data['consistent_count'] + top_score_data['inconsistent_count']
+    ) if (top_score_data['consistent_count'] + top_score_data['inconsistent_count']) > 0 else 0
+    
+    # Overall confidence calculation
+    confidence_factors = {
+        'score_separation': min(score_spread / 10, 1.0),  # Higher separation = higher confidence
+        'evidence_reliability': avg_reliability,
+        'consistency': consistency_ratio
+    }
+    
+    overall_confidence = statistics.mean(confidence_factors.values())
+    
+    print("=== Confidence Assessment ===")
+    print(f"Score Separation: {score_spread:.2f}")
+    print(f"Average Evidence Reliability: {avg_reliability:.2f}")
+    print(f"Top Hypothesis Consistency: {consistency_ratio:.2f}")
+    print(f"Overall Confidence Level: {overall_confidence:.2f}")
+    
+    # Confidence interpretation
+    if overall_confidence >= 0.8:
+        confidence_level = "HIGH"
+        interpretation = "Strong evidence supports the attribution conclusion"
+    elif overall_confidence >= 0.6:
+        confidence_level = "MEDIUM"
+        interpretation = "Moderate evidence supports the attribution conclusion"
+    else:
+        confidence_level = "LOW"
+        interpretation = "Limited evidence; attribution conclusion is tentative"
+    
+    print(f"\nConfidence Level: {confidence_level}")
+    print(f"Interpretation: {interpretation}")
+    
+    # Save confidence assessment
+    confidence_report = {
+        'confidence_level': confidence_level,
+        'overall_score': overall_confidence,
+        'factors': confidence_factors,
+        'interpretation': interpretation,
+        'recommendations': []
+    }
+    
+    # Add recommendations based on confidence level
+    if overall_confidence < 0.7:
+        confidence_report['recommendations'].extend([
+            "Collect additional high-reliability evidence",
+            "Validate existing evidence through independent sources",
+            "Consider alternative attribution scenarios"
+        ])
+    
+    with open('../reports/confidence_assessment.json', 'w') as f:
+        json.dump(confidence_report, f, indent=2)
+    
+    print(f"\nConfidence assessment saved to reports/confidence_assessment.json")
+
+if __name__ == "__main__":
+    assess_confidence()
+EOF
+
+chmod +x analysis/confidence_assessment.py
+python3 confidence_assessment.py
+Subtask 4.3: Create Executive Summary
+# Generate executive summary
+cat > reports/executive_summary.md << 'EOF'
+# Executive Summary: Threat Actor Attribution Analysis
+
+## Incident Overview
+- **Incident ID:** INC-2024-001
+- **Attack Type:** Advanced Persistent Threat targeting financial sector
+- **Analysis Method:** Analysis of Competing Hypotheses (ACH)
+
+## Key Findings
+Based on systematic ACH analysis of available evidence, the investigation evaluated four competing hypotheses for threat actor attribution.
+
+## Attribution Conclusion
+**Primary Attribution:** [Top hypothesis from analysis]
+**Confidence Level:** [From confidence assessment]
+
+## Supporting Evidence
+- Technical indicators showing strong correlation
+- Infrastructure patterns matching known actor behavior
+- TTP alignment with historical campaigns
+
+## Recommendations
+1. **Immediate Actions:** Implement targeted defenses against identified actor TTPs
+2. **Investigation:** Continue evidence collection to strengthen attribution confidence
+3. **Intelligence Sharing:** Coordinate with relevant agencies and industry partners
+
+## Next Steps
+- Monitor for additional indicators
+- Validate findings through independent analysis
+- Update threat intelligence profiles
+EOF
+
+echo "=== Lab Completion Summary ==="
+echo "Files created:"
+ls -la reports/
+Verification and Testing
+Verify Analysis Results
+# Check all generated files
+echo "=== Generated Analysis Files ==="
+find ~/ach_lab -name "*.json" -o -name "*.md" -o -name "*.py" | sort
+
+# Validate JSON files
+echo -e "\n=== JSON Validation ==="
+for file in reports/*.json data/*.json; do
+    if python3 -m json.tool "$file" > /dev/null 2>&1; then
+        echo "✓ $file is valid JSON"
+    else
+        echo "✗ $file has JSON errors"
+    fi
+done
+
+# Display final results summary
+echo -e "\n=== Final Results ==="
+python3 -c "
+import json
+with open('reports/ach_results.json', 'r') as f:
+    results = json.load(f)
+print('Top 3 Attribution Candidates:')
+for i, (hypothesis, score) in enumerate(results['ranking'][:3], 1):
+    print(f'{i}. {hypothesis}: {score:.2f}')
+"
+Conclusion
+You have successfully completed an ACH analysis for threat actor attribution. This lab demonstrated how to:
+
+Structure competing hypotheses systematically for attribution analysis
+Apply the ACH methodology to evaluate evidence against multiple scenarios
+Calculate weighted scores based on evidence reliability and consistency
+Generate comprehensive reports with confidence assessments
+Make data-driven attribution conclusions using analytical rigor
+The ACH method provides a structured approach to avoid cognitive biases in attribution analysis, ensuring that all competing hypotheses receive fair evaluation based on available evidence. This systematic approach is crucial for accurate threat intelligence and informed cybersecurity decision-making.
+
+Key Skills Developed:
+
+Analytical thinking and hypothesis testing
+Evidence evaluation and weighting
+Structured analytical techniques
+Technical report writing
+Confidence assessment methodologies
