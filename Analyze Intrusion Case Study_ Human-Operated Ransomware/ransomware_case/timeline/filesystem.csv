@@ -1,0 +1,7 @@
+Date,Time,Size,Activity,Path
+2024-01-15,08:30:00,2048,Created,C:\temp\stage1.exe
+2024-01-15,08:31:15,4096,Modified,C:\Windows\System32\drivers\etc\hosts
+2024-01-15,08:35:00,8192,Created,C:\temp\lateral.ps1
+2024-01-15,08:40:00,0,Deleted,C:\Windows\System32\config\SAM.bak
+2024-01-15,09:00:00,1024,Created,C:\Users\admin\Desktop\README.txt
+2024-01-15,09:15:00,16384,Created,C:\temp\encrypt.exe
