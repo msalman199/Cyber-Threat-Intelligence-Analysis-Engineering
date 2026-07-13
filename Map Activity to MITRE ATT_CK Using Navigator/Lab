@@ -1,0 +1,383 @@
+ Map Activity to MITRE ATT&CK Using Navigator
+Learning Objectives
+By completing this lab, you will:
+
+Navigate and utilize the MITRE ATT&CK Navigator web interface
+Map observed ransomware activities to specific ATT&CK techniques
+Create visual threat intelligence representations using Navigator layers
+Correlate multiple techniques to identify adversary behavior patterns
+Generate actionable threat intelligence reports from mapped activities
+Prerequisites
+Basic understanding of cybersecurity concepts
+Familiarity with web browsers and JSON file formats
+Knowledge of common attack vectors and malware behavior
+Understanding of the MITRE ATT&CK framework fundamentals
+Lab Environment
+Al Nafi provides Linux-based cloud machines for this lab. Click Start Lab to access your dedicated environment. The provided Linux machine is bare metal with no pre-installed tools, so you will install required tools during the lab.
+
+Task 1: Set Up MITRE ATT&CK Navigator Environment
+Subtask 1.1: Install Required Tools
+Access your Linux machine and install necessary components:
+
+# Update system packages
+sudo apt update && sudo apt upgrade -y
+
+# Install web browser and utilities
+sudo apt install -y firefox curl wget git
+
+# Install Node.js and npm for local development
+curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+sudo apt install -y nodejs
+
+# Verify installations
+firefox --version
+node --version
+npm --version
+Subtask 1.2: Access ATT&CK Navigator
+Launch the web-based Navigator:
+
+# Start Firefox browser
+firefox https://mitre-attack.github.io/attack-navigator/ &
+
+# Alternative: Clone Navigator for local use
+git clone https://github.com/mitre-attack/attack-navigator.git
+cd attack-navigator
+npm install
+npm start
+Navigate to the ATT&CK Navigator interface and familiarize yourself with the layout.
+
+Task 2: Input Ransomware Case Study Data
+Subtask 2.1: Create Sample Ransomware Scenario
+Create a realistic ransomware case study file:
+
+# Create working directory
+mkdir ~/attck-lab && cd ~/attck-lab
+
+# Create ransomware scenario data
+cat > ransomware_scenario.json << 'EOF'
+{
+  "name": "Ransomware Campaign Analysis",
+  "description": "Mapping observed ransomware activities to ATT&CK",
+  "domain": "enterprise-attack",
+  "version": "4.5",
+  "techniques": [
+    {
+      "techniqueID": "T1566.001",
+      "tactic": "initial-access",
+      "score": 100,
+      "color": "#ff0000",
+      "comment": "Spearphishing attachment with malicious PDF"
+    },
+    {
+      "techniqueID": "T1204.002",
+      "tactic": "execution",
+      "score": 100,
+      "color": "#ff0000",
+      "comment": "User executed malicious attachment"
+    },
+    {
+      "techniqueID": "T1055",
+      "tactic": "defense-evasion",
+      "score": 90,
+      "color": "#ff4444",
+      "comment": "Process injection into legitimate processes"
+    },
+    {
+      "techniqueID": "T1083",
+      "tactic": "discovery",
+      "score": 85,
+      "color": "#ff6666",
+      "comment": "File and directory discovery for encryption targets"
+    },
+    {
+      "techniqueID": "T1486",
+      "tactic": "impact",
+      "score": 100,
+      "color": "#ff0000",
+      "comment": "Data encrypted for impact - primary ransomware activity"
+    }
+  ]
+}
+EOF
+Subtask 2.2: Load Data into Navigator
+In the ATT&CK Navigator interface, click "Open Existing Layer"
+Select "Upload from local"
+Upload the ransomware_scenario.json file
+Verify the techniques are highlighted on the matrix
+Task 3: Map Additional Ransomware Activities
+Subtask 3.1: Identify Common Ransomware TTPs
+Create an extended mapping file with comprehensive ransomware techniques:
+
+# Create comprehensive ransomware mapping
+cat > comprehensive_ransomware.json << 'EOF'
+{
+  "name": "Comprehensive Ransomware TTP Mapping",
+  "description": "Complete ransomware attack chain analysis",
+  "domain": "enterprise-attack",
+  "version": "4.5",
+  "techniques": [
+    {
+      "techniqueID": "T1566.001",
+      "tactic": "initial-access",
+      "score": 100,
+      "color": "#8B0000",
+      "comment": "Spearphishing attachment - primary vector"
+    },
+    {
+      "techniqueID": "T1204.002",
+      "tactic": "execution",
+      "score": 100,
+      "color": "#8B0000",
+      "comment": "User execution of malicious file"
+    },
+    {
+      "techniqueID": "T1547.001",
+      "tactic": "persistence",
+      "score": 80,
+      "color": "#CD5C5C",
+      "comment": "Registry run keys for persistence"
+    },
+    {
+      "techniqueID": "T1055",
+      "tactic": "defense-evasion",
+      "score": 90,
+      "color": "#B22222",
+      "comment": "Process injection to evade detection"
+    },
+    {
+      "techniqueID": "T1082",
+      "tactic": "discovery",
+      "score": 75,
+      "color": "#DC143C",
+      "comment": "System information discovery"
+    },
+    {
+      "techniqueID": "T1083",
+      "tactic": "discovery",
+      "score": 95,
+      "color": "#B22222",
+      "comment": "File and directory discovery for targets"
+    },
+    {
+      "techniqueID": "T1135",
+      "tactic": "discovery",
+      "score": 70,
+      "color": "#DC143C",
+      "comment": "Network share discovery for lateral spread"
+    },
+    {
+      "techniqueID": "T1021.002",
+      "tactic": "lateral-movement",
+      "score": 85,
+      "color": "#CD5C5C",
+      "comment": "SMB/Windows Admin Shares for lateral movement"
+    },
+    {
+      "techniqueID": "T1486",
+      "tactic": "impact",
+      "score": 100,
+      "color": "#8B0000",
+      "comment": "Data encryption for impact - core ransomware function"
+    },
+    {
+      "techniqueID": "T1491.001",
+      "tactic": "impact",
+      "score": 90,
+      "color": "#B22222",
+      "comment": "Internal defacement with ransom notes"
+    }
+  ]
+}
+EOF
+Subtask 3.2: Analyze Attack Patterns
+Load the comprehensive mapping and analyze patterns:
+
+Upload the comprehensive_ransomware.json file to Navigator
+Observe the attack chain progression across tactics
+Identify high-scoring techniques (primary indicators)
+Note the color-coding representing threat severity
+Task 4: Correlate Techniques and Identify Adversary Behavior
+Subtask 4.1: Create Behavior Analysis Script
+Generate a script to analyze the mapped techniques:
+
+# Create analysis script
+cat > analyze_techniques.py << 'EOF'
+#!/usr/bin/env python3
+import json
+import sys
+
+def analyze_ransomware_ttps(filename):
+    try:
+        with open(filename, 'r') as f:
+            data = json.load(f)
+        
+        print(f"Analysis of: {data['name']}")
+        print("=" * 50)
+        
+        # Group techniques by tactic
+        tactics = {}
+        for technique in data['techniques']:
+            tactic = technique['tactic']
+            if tactic not in tactics:
+                tactics[tactic] = []
+            tactics[tactic].append(technique)
+        
+        # Analyze each tactic
+        for tactic, techniques in tactics.items():
+            print(f"\n{tactic.upper().replace('-', ' ')}:")
+            for tech in techniques:
+                print(f"  - {tech['techniqueID']}: Score {tech['score']}")
+                print(f"    Comment: {tech['comment']}")
+        
+        # Identify critical techniques (score >= 90)
+        critical = [t for t in data['techniques'] if t['score'] >= 90]
+        print(f"\nCRITICAL TECHNIQUES ({len(critical)} found):")
+        for tech in critical:
+            print(f"  - {tech['techniqueID']}: {tech['comment']}")
+        
+        # Attack chain analysis
+        print(f"\nATTACK CHAIN ANALYSIS:")
+        print(f"Total techniques mapped: {len(data['techniques'])}")
+        print(f"Tactics covered: {len(tactics)}")
+        print(f"Average severity score: {sum(t['score'] for t in data['techniques']) / len(data['techniques']):.1f}")
+        
+    except Exception as e:
+        print(f"Error analyzing file: {e}")
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("Usage: python3 analyze_techniques.py <json_file>")
+        sys.exit(1)
+    
+    analyze_ransomware_ttps(sys.argv[1])
+EOF
+
+# Make script executable
+chmod +x analyze_techniques.py
+
+# Run analysis
+python3 analyze_techniques.py comprehensive_ransomware.json
+Subtask 4.2: Generate Threat Intelligence Report
+Create a comprehensive threat intelligence report:
+
+# Generate detailed report
+cat > generate_report.py << 'EOF'
+#!/usr/bin/env python3
+import json
+from datetime import datetime
+
+def generate_threat_report(filename):
+    with open(filename, 'r') as f:
+        data = json.load(f)
+    
+    report = f"""
+THREAT INTELLIGENCE REPORT
+Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+Campaign: {data['name']}
+
+EXECUTIVE SUMMARY
+================
+This analysis maps observed ransomware activities to the MITRE ATT&CK framework,
+identifying {len(data['techniques'])} distinct techniques across multiple tactics.
+
+ATTACK PROGRESSION
+==================
+"""
+    
+    # Sort techniques by tactic order
+    tactic_order = ['initial-access', 'execution', 'persistence', 'defense-evasion', 
+                   'discovery', 'lateral-movement', 'collection', 'impact']
+    
+    tactics = {}
+    for technique in data['techniques']:
+        tactic = technique['tactic']
+        if tactic not in tactics:
+            tactics[tactic] = []
+        tactics[tactic].append(technique)
+    
+    for tactic in tactic_order:
+        if tactic in tactics:
+            report += f"\n{tactic.upper().replace('-', ' ')}:\n"
+            for tech in tactics[tactic]:
+                report += f"  {tech['techniqueID']} (Score: {tech['score']})\n"
+                report += f"  └─ {tech['comment']}\n"
+    
+    # Recommendations
+    report += """
+DEFENSIVE RECOMMENDATIONS
+=========================
+1. Implement email security controls to prevent spearphishing
+2. Deploy endpoint detection and response (EDR) solutions
+3. Enable file system monitoring for encryption activities
+4. Implement network segmentation to limit lateral movement
+5. Maintain offline backups for rapid recovery
+6. Conduct regular security awareness training
+
+INDICATORS OF COMPROMISE
+========================
+- Unusual process injection activities
+- Rapid file system changes indicating encryption
+- Network scanning for share discovery
+- Registry modifications for persistence
+- Ransom note creation and display
+"""
+    
+    return report
+
+# Generate and save report
+report_content = generate_threat_report('comprehensive_ransomware.json')
+with open('threat_intelligence_report.txt', 'w') as f:
+    f.write(report_content)
+
+print("Threat intelligence report generated: threat_intelligence_report.txt")
+print("\nReport preview:")
+print("=" * 60)
+print(report_content[:1000] + "...")
+EOF
+
+# Generate report
+python3 generate_report.py
+
+# Display report
+cat threat_intelligence_report.txt
+Subtask 4.3: Export Navigator Layer
+Export your analysis for sharing:
+
+In ATT&CK Navigator, click "Export Layer"
+Select "Export as SVG" for visual representation
+Select "Export as JSON" for data sharing
+Save both formats to your working directory
+# Verify exported files
+ls -la ~/attck-lab/
+echo "Lab files created successfully!"
+Verification and Testing
+Verify your analysis is complete:
+
+# Check all required files exist
+files=("ransomware_scenario.json" "comprehensive_ransomware.json" "threat_intelligence_report.txt")
+for file in "${files[@]}"; do
+    if [ -f "$file" ]; then
+        echo "✓ $file exists"
+    else
+        echo "✗ $file missing"
+    fi
+done
+
+# Validate JSON files
+python3 -c "
+import json
+try:
+    with open('comprehensive_ransomware.json', 'r') as f:
+        data = json.load(f)
+    print(f'✓ JSON valid: {len(data[\"techniques\"])} techniques mapped')
+except Exception as e:
+    print(f'✗ JSON error: {e}')
+"
+Conclusion
+You have successfully completed mapping ransomware activities to the MITRE ATT&CK framework using Navigator. This lab demonstrated how to:
+
+Transform raw threat intelligence into structured ATT&CK mappings
+Visualize attack patterns using the Navigator interface
+Analyze adversary behavior through technique correlation
+Generate actionable threat intelligence reports
+These skills are essential for threat hunters, security analysts, and incident responders who need to understand and communicate adversary tactics, techniques, and procedures effectively. The MITRE ATT&CK Navigator provides a standardized approach to threat intelligence analysis that enhances organizational security posture through better threat understanding and defensive planning.
