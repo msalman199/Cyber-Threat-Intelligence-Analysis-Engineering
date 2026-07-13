@@ -1,0 +1,46 @@
+{
+  "evidence": [
+    {
+      "name": "Malware Code Similarity",
+      "description": "Code reuse patterns matching known actor toolsets",
+      "type": "Technical",
+      "reliability": 0.8
+    },
+    {
+      "name": "Infrastructure Overlap",
+      "description": "C2 infrastructure previously used by known actors",
+      "type": "Infrastructure",
+      "reliability": 0.7
+    },
+    {
+      "name": "TTP Matching",
+      "description": "Tactics, techniques, and procedures alignment",
+      "type": "Behavioral",
+      "reliability": 0.9
+    },
+    {
+      "name": "Target Selection",
+      "description": "Victim profile matching actor preferences",
+      "type": "Strategic",
+      "reliability": 0.6
+    },
+    {
+      "name": "Timing Patterns",
+      "description": "Attack timing consistent with actor's timezone",
+      "type": "Temporal",
+      "reliability": 0.5
+    },
+    {
+      "name": "Language Artifacts",
+      "description": "Language indicators in malware or communications",
+      "type": "Linguistic",
+      "reliability": 0.7
+    },
+    {
+      "name": "Operational Security",
+      "description": "OPSEC patterns matching known actor behavior",
+      "type": "Operational",
+      "reliability": 0.8
+    }
+  ]
+}
