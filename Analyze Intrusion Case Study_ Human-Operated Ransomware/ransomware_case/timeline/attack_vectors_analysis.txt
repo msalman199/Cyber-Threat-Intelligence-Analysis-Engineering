@@ -1,0 +1,27 @@
+RANSOMWARE ATTACK VECTOR ANALYSIS
+=================================
+
+1. INITIAL ACCESS:
+   - Remote Desktop Protocol (RDP) brute force
+   - Evidence: Logon Type 3 from external IP
+   - Timestamp: 2024-01-15 08:30:15
+
+2. CREDENTIAL ACCESS:
+   - Explicit credential use detected
+   - Privilege escalation to admin account
+   - Evidence: EventID 4648, 4672
+
+3. LATERAL MOVEMENT:
+   - SMB and RPC connections to internal hosts
+   - PowerShell execution with encoded commands
+   - WMI usage for remote execution
+
+4. COMMAND AND CONTROL:
+   - HTTPS connections to suspicious IPs
+   - Tor network communication
+   - DNS queries to .onion domains
+
+5. IMPACT:
+   - Shadow copy deletion (vssadmin, wmic)
+   - Boot configuration modification
+   - File encryption process execution
