@@ -1,0 +1,11 @@
+organization:
+  name: "Sample Organization"
+  sector: "Technology"
+  threat_level: "Medium"
+  
+intelligence_categories:
+  - "Threat Intelligence"
+  - "Vulnerability Intelligence"
+  - "Asset Intelligence"
+  - "Compliance Intelligence"
+  - "Business Intelligence"
