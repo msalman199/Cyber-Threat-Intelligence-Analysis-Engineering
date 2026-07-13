@@ -1,0 +1,13 @@
+OPERATION AURORA TIMELINE
+========================
+
+2009-12-15: Initial spear-phishing campaign begins
+2009-12-16: First successful compromise at target organization
+2009-12-17: Hydraq malware deployed on compromised systems
+2009-12-20: C2 communication established with attacker infrastructure
+2009-12-25: Lateral movement within corporate networks
+2010-01-02: Data exfiltration activities detected
+2010-01-12: Google publicly announces the attack
+2010-01-14: Additional companies confirm compromise
+2010-01-21: Microsoft releases emergency patch for IE vulnerability
+2010-02-01: Attribution analysis points to Chinese APT group
