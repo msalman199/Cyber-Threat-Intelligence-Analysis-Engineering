@@ -1,0 +1,17 @@
+{
+  "incident_id": "INC-2024-001",
+  "attack_summary": "Advanced persistent threat targeting financial sector",
+  "initial_indicators": {
+    "malware_family": "Custom RAT",
+    "c2_infrastructure": "Multiple domains with DGA",
+    "attack_vectors": ["Spear phishing", "Watering hole"],
+    "target_sectors": ["Financial services", "Government"],
+    "geographic_focus": "North America, Europe"
+  },
+  "technical_indicators": {
+    "file_hashes": ["a1b2c3d4e5f6", "f6e5d4c3b2a1"],
+    "domains": ["evil-bank[.]com", "secure-update[.]net"],
+    "ip_addresses": ["192.168.1.100", "10.0.0.50"],
+    "ttps": ["T1566.001", "T1071.001", "T1055"]
+  }
+}
