@@ -1,0 +1,78 @@
+{
+  "name": "Comprehensive Ransomware TTP Mapping",
+  "description": "Complete ransomware attack chain analysis",
+  "domain": "enterprise-attack",
+  "version": "4.5",
+  "techniques": [
+    {
+      "techniqueID": "T1566.001",
+      "tactic": "initial-access",
+      "score": 100,
+      "color": "#8B0000",
+      "comment": "Spearphishing attachment - primary vector"
+    },
+    {
+      "techniqueID": "T1204.002",
+      "tactic": "execution",
+      "score": 100,
+      "color": "#8B0000",
+      "comment": "User execution of malicious file"
+    },
+    {
+      "techniqueID": "T1547.001",
+      "tactic": "persistence",
+      "score": 80,
+      "color": "#CD5C5C",
+      "comment": "Registry run keys for persistence"
+    },
+    {
+      "techniqueID": "T1055",
+      "tactic": "defense-evasion",
+      "score": 90,
+      "color": "#B22222",
+      "comment": "Process injection to evade detection"
+    },
+    {
+      "techniqueID": "T1082",
+      "tactic": "discovery",
+      "score": 75,
+      "color": "#DC143C",
+      "comment": "System information discovery"
+    },
+    {
+      "techniqueID": "T1083",
+      "tactic": "discovery",
+      "score": 95,
+      "color": "#B22222",
+      "comment": "File and directory discovery for targets"
+    },
+    {
+      "techniqueID": "T1135",
+      "tactic": "discovery",
+      "score": 70,
+      "color": "#DC143C",
+      "comment": "Network share discovery for lateral spread"
+    },
+    {
+      "techniqueID": "T1021.002",
+      "tactic": "lateral-movement",
+      "score": 85,
+      "color": "#CD5C5C",
+      "comment": "SMB/Windows Admin Shares for lateral movement"
+    },
+    {
+      "techniqueID": "T1486",
+      "tactic": "impact",
+      "score": 100,
+      "color": "#8B0000",
+      "comment": "Data encryption for impact - core ransomware function"
+    },
+    {
+      "techniqueID": "T1491.001",
+      "tactic": "impact",
+      "score": 90,
+      "color": "#B22222",
+      "comment": "Internal defacement with ransom notes"
+    }
+  ]
+}
