@@ -1,0 +1,21 @@
+APT29 Campaign Analysis - March 2024
+
+Recent spear-phishing campaign targeting government entities.
+
+Infrastructure:
+- C2 Server: 185.220.101.42
+- Backup C2: secure-update.gov-portal.net
+- Phishing domain: government-portal.secure-login.net
+
+Malware artifacts:
+SHA256: 7d865e959b2466918c9863afca942d0fb89d7c9ac0c99bafc3749504ded97730
+MD5: 098f6bcd4621d373cade4e832627b4f6
+File: government_update.exe
+
+Email indicators:
+From: admin@government-portal.secure-login.net
+Subject: Urgent Security Update Required
+
+URLs:
+https://government-portal.secure-login.net/update
+http://185.220.101.42/payload.bin
