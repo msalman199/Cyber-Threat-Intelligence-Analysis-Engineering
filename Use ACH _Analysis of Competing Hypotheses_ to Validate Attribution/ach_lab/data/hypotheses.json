@@ -1,0 +1,32 @@
+{
+  "hypotheses": [
+    {
+      "name": "APT29",
+      "description": "Russian state-sponsored group known for financial sector targeting",
+      "known_ttps": ["T1566.001", "T1071.001", "T1027"],
+      "typical_targets": ["Government", "Financial"],
+      "geographic_origin": "Russia"
+    },
+    {
+      "name": "Lazarus",
+      "description": "North Korean group with history of financial institution attacks",
+      "known_ttps": ["T1566.001", "T1055", "T1083"],
+      "typical_targets": ["Financial", "Cryptocurrency"],
+      "geographic_origin": "North Korea"
+    },
+    {
+      "name": "FIN7",
+      "description": "Financially motivated cybercriminal group",
+      "known_ttps": ["T1566.001", "T1071.001", "T1055"],
+      "typical_targets": ["Retail", "Financial", "Hospitality"],
+      "geographic_origin": "Unknown"
+    },
+    {
+      "name": "Unknown Actor",
+      "description": "Previously unidentified threat actor",
+      "known_ttps": ["Variable"],
+      "typical_targets": ["Variable"],
+      "geographic_origin": "Unknown"
+    }
+  ]
+}
