@@ -1,0 +1,20 @@
+OPERATION AURORA - CASE STUDY SUMMARY
+=====================================
+
+Timeline: December 2009 - January 2010
+Primary Targets: Google, Adobe, Yahoo, Symantec, Northrop Grumman
+Attack Vector: Spear-phishing emails with malicious attachments
+Malware: Hydraq/Aurora trojan
+Attribution: Advanced Persistent Threat (APT1/Comment Crew)
+
+Key Attack Phases:
+1. Initial Compromise: Spear-phishing emails to employees
+2. Exploitation: Internet Explorer zero-day vulnerability (CVE-2010-0249)
+3. Installation: Hydraq backdoor deployment
+4. Command & Control: Communication with attacker infrastructure
+5. Data Exfiltration: Intellectual property and source code theft
+
+Primary Objectives:
+- Steal intellectual property
+- Access Gmail accounts of Chinese human rights activists
+- Compromise corporate networks for long-term access
