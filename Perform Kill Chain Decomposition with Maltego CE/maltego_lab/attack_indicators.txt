@@ -1,0 +1,25 @@
+# APT Attack Scenario - Financial Institution
+# Reconnaissance Phase
+target_domain: firstnationalbank.com
+target_email: admin@firstnationalbank.com
+social_media: linkedin.com/company/first-national-bank
+
+# Weaponization & Delivery
+malicious_domain: secure-banking-update.com
+phishing_email: security-alert@firstnationalbank.com
+attachment: BankingUpdate.pdf.exe
+
+# Exploitation & Installation
+c2_server: 192.168.100.50
+backdoor: banking_trojan.exe
+persistence_registry: HKLM\Software\Microsoft\Windows\CurrentVersion\Run
+
+# Command & Control
+c2_domain: update-server.net
+c2_ip: 203.0.113.45
+beacon_interval: 300
+
+# Actions on Objectives
+target_database: customer_accounts.db
+exfil_server: data-backup.org
+stolen_records: 50000
