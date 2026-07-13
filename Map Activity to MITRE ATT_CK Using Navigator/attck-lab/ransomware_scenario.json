@@ -1,0 +1,43 @@
+{
+  "name": "Ransomware Campaign Analysis",
+  "description": "Mapping observed ransomware activities to ATT&CK",
+  "domain": "enterprise-attack",
+  "version": "4.5",
+  "techniques": [
+    {
+      "techniqueID": "T1566.001",
+      "tactic": "initial-access",
+      "score": 100,
+      "color": "#ff0000",
+      "comment": "Spearphishing attachment with malicious PDF"
+    },
+    {
+      "techniqueID": "T1204.002",
+      "tactic": "execution",
+      "score": 100,
+      "color": "#ff0000",
+      "comment": "User executed malicious attachment"
+    },
+    {
+      "techniqueID": "T1055",
+      "tactic": "defense-evasion",
+      "score": 90,
+      "color": "#ff4444",
+      "comment": "Process injection into legitimate processes"
+    },
+    {
+      "techniqueID": "T1083",
+      "tactic": "discovery",
+      "score": 85,
+      "color": "#ff6666",
+      "comment": "File and directory discovery for encryption targets"
+    },
+    {
+      "techniqueID": "T1486",
+      "tactic": "impact",
+      "score": 100,
+      "color": "#ff0000",
+      "comment": "Data encrypted for impact - primary ransomware activity"
+    }
+  ]
+}
