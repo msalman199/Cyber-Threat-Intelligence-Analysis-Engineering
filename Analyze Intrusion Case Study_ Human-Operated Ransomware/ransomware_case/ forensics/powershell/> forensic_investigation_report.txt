@@ -1,0 +1,60 @@
+RANSOMWARE FORENSIC INVESTIGATION REPORT
+=======================================
+
+CASE SUMMARY:
+Human-operated ransomware attack targeting corporate network
+Attack Date: January 15, 2024
+Investigation Date: $(date)
+
+ATTACK VECTOR ANALYSIS:
+1. Initial Access: RDP brute force attack
+2. Credential Compromise: Valid admin account
+3. Lateral Movement: SMB/RPC protocols
+4. Persistence: Privileged account access
+5. Command & Control: HTTPS and Tor communications
+6. Impact: Data encryption and system recovery inhibition
+
+MITRE ATT&CK MAPPING:
+- T1078: Valid Accounts (Initial Access)
+- T1021.001: Remote Desktop Protocol (Lateral Movement)
+- T1059.001: PowerShell (Execution)
+- T1071.001: Web Protocols (Command and Control)
+- T1490: Inhibit System Recovery (Impact)
+- T1486: Data Encrypted for Impact (Impact)
+
+KEY FORENSIC ARTIFACTS:
+1. PowerShell Execution:
+   - Encoded command execution detected
+   - Second-stage payload download
+   - File: C:\temp\stage2.ps1
+
+2. System Modifications:
+   - Shadow copy deletion (vssadmin, wmic)
+   - Boot recovery disabled (bcdedit)
+   - System backup files deleted
+
+3. Network Communications:
+   - C2 server: 185.220.101.45:443
+   - Tor relay communications
+   - Data exfiltration channels
+
+4. File System Impact:
+   - Encryption executable: C:\temp\encrypt.exe
+   - Ransom note: C:\Users\admin\Desktop\README.txt
+   - Staging directory: C:\temp\
+
+INDICATORS OF COMPROMISE (IOCs):
+- IP Addresses: 185.220.101.45, 45.142.214.123
+- File Hashes: [Generated during analysis]
+- Domain: tor-relay.darkweb.onion
+- File Paths: C:\temp\encrypt.exe, C:\temp\stage1.exe
+
+RECOMMENDATIONS:
+1. Implement RDP security controls
+2. Deploy endpoint detection and response (EDR)
+3. Monitor PowerShell execution
+4. Block identified IOCs
+5. Implement network segmentation
+6. Regular backup verification
+
+INVESTIGATION COMPLETED: $(date)
