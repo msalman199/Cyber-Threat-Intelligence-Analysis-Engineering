@@ -1,0 +1,226 @@
+Perform Kill Chain Decomposition with Maltego CE
+Learning Objectives
+By completing this lab, you will:
+
+Install and configure Maltego CE for attack analysis
+Map attack stages using the Cyber Kill Chain model
+Visualize attack paths and identify critical entry points
+Analyze threat actor infrastructure and tactics
+Prerequisites
+Basic understanding of cybersecurity concepts
+Familiarity with Linux command line
+Knowledge of network protocols and attack methodologies
+Understanding of the Cyber Kill Chain framework
+Lab Environment
+Al Nafi provides Linux-based cloud machines for this lab. Simply click Start Lab to access your dedicated environment. The provided Linux machine is bare metal with no pre-installed tools, so you will install all required software during the lab.
+
+Task 1: Install and Configure Maltego CE
+Subtask 1.1: System Preparation
+Update your system and install dependencies:
+
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y wget curl openjdk-11-jdk python3 python3-pip
+Subtask 1.2: Download and Install Maltego CE
+Download Maltego CE:
+
+cd ~/Downloads
+wget https://maltego-downloads.s3.us-east-2.amazonaws.com/linux/Maltego.v4.5.0.deb
+sudo dpkg -i Maltego.v4.5.0.deb
+sudo apt-get install -f
+Subtask 1.3: Initial Configuration
+Launch Maltego and complete setup:
+
+maltego
+Create a free Maltego CE account when prompted
+Select Maltego CE (Free) license
+Complete the registration process
+Install default transform hub transforms
+Task 2: Load Attack Data and Identify Kill Chain Stages
+Subtask 2.1: Create Sample Attack Scenario
+Create a sample attack dataset file:
+
+mkdir ~/maltego_lab
+cd ~/maltego_lab
+cat > attack_indicators.txt << 'EOF'
+# APT Attack Scenario - Financial Institution
+# Reconnaissance Phase
+target_domain: firstnationalbank.com
+target_email: admin@firstnationalbank.com
+social_media: linkedin.com/company/first-national-bank
+
+# Weaponization & Delivery
+malicious_domain: secure-banking-update.com
+phishing_email: security-alert@firstnationalbank.com
+attachment: BankingUpdate.pdf.exe
+
+# Exploitation & Installation
+c2_server: 192.168.100.50
+backdoor: banking_trojan.exe
+persistence_registry: HKLM\Software\Microsoft\Windows\CurrentVersion\Run
+
+# Command & Control
+c2_domain: update-server.net
+c2_ip: 203.0.113.45
+beacon_interval: 300
+
+# Actions on Objectives
+target_database: customer_accounts.db
+exfil_server: data-backup.org
+stolen_records: 50000
+EOF
+Subtask 2.2: Start New Maltego Investigation
+Open Maltego CE
+Click New Graph
+Save the graph as "Kill_Chain_Analysis"
+Subtask 2.3: Map Reconnaissance Stage
+Add reconnaissance entities:
+
+Drag Domain entity to graph
+Set value to firstnationalbank.com
+Right-click domain → Run Transform → To DNS Name
+Add Email Address entity: admin@firstnationalbank.com
+Add Website entity: linkedin.com/company/first-national-bank
+Subtask 2.4: Map Weaponization and Delivery
+Add delivery mechanism entities:
+
+Add Domain entity: secure-banking-update.com
+Add Email Address entity: security-alert@firstnationalbank.com
+Add File entity: BankingUpdate.pdf.exe
+Connect entities with Link relationships
+Task 3: Visualize Attack Paths and Identify Entry Points
+Subtask 3.1: Map Exploitation Phase
+Add exploitation indicators:
+
+Add IPv4 Address entity: 192.168.100.50
+Add File entity: banking_trojan.exe
+Add Registry Key entity: HKLM\Software\Microsoft\Windows\CurrentVersion\Run
+Subtask 3.2: Map Command and Control
+Add C2 infrastructure:
+
+Add Domain entity: update-server.net
+Add IPv4 Address entity: 203.0.113.45
+Run transform: Right-click domain → To IP Address
+Add Phrase entity for beacon interval: 300 seconds
+Subtask 3.3: Map Actions on Objectives
+Add final stage indicators:
+
+Add File entity: customer_accounts.db
+Add Domain entity: data-backup.org
+Add Phrase entity: 50000 records stolen
+Subtask 3.4: Apply Kill Chain Labels
+Label each phase:
+
+Select reconnaissance entities
+Right-click → Entity Properties → Notes
+Add label: Kill Chain Stage: Reconnaissance
+Repeat for each stage:
+Weaponization
+Delivery
+Exploitation
+Installation
+Command & Control
+Actions on Objectives
+Subtask 3.5: Analyze Attack Flow
+Create visual attack flow:
+
+Use Link entities to connect sequential stages
+Apply different colors to each kill chain stage:
+Reconnaissance: Blue
+Weaponization: Orange
+Delivery: Red
+Exploitation: Purple
+Installation: Green
+C2: Yellow
+Actions: Black
+Subtask 3.6: Identify Critical Entry Points
+Analyze the graph to identify:
+
+Primary Entry Point: Phishing email delivery
+Secondary Entry Points: Social media reconnaissance
+Critical Infrastructure: C2 servers and domains
+High-Value Targets: Customer database
+Create summary analysis:
+
+cat > kill_chain_analysis.txt << 'EOF'
+KILL CHAIN DECOMPOSITION ANALYSIS
+=================================
+
+ENTRY POINTS IDENTIFIED:
+1. Primary: Phishing email (security-alert@firstnationalbank.com)
+2. Secondary: Social media reconnaissance (LinkedIn)
+3. Infrastructure: Malicious domain (secure-banking-update.com)
+
+CRITICAL ATTACK PATH:
+Reconnaissance → Weaponization → Email Delivery → Exploitation → C2 Communication → Data Exfiltration
+
+MITIGATION RECOMMENDATIONS:
+- Email security controls for phishing detection
+- Domain reputation monitoring
+- Network segmentation to prevent C2 communication
+- Database access controls and monitoring
+- Employee security awareness training
+
+INDICATORS OF COMPROMISE (IOCs):
+- Domain: secure-banking-update.com
+- IP: 203.0.113.45
+- File: BankingUpdate.pdf.exe
+- C2 Domain: update-server.net
+EOF
+Subtask 3.7: Export Analysis Results
+Export your Maltego graph:
+
+File → Export → Export Graph as Image
+Save as kill_chain_visualization.png
+File → Export → Export to CSV
+Save entity data as attack_indicators.csv
+Verify exported files:
+
+ls -la ~/maltego_lab/
+cat attack_indicators.csv | head -10
+Verification and Testing
+Verify Kill Chain Mapping
+Check that your analysis includes:
+
+echo "Verifying Kill Chain Analysis Components:"
+echo "1. Reconnaissance entities mapped: ✓"
+echo "2. Attack delivery mechanisms identified: ✓"
+echo "3. C2 infrastructure visualized: ✓"
+echo "4. Data exfiltration paths mapped: ✓"
+echo "5. Critical entry points identified: ✓"
+Generate Final Report
+Create comprehensive analysis report:
+
+cat > final_report.md << 'EOF'
+# Kill Chain Decomposition Report
+
+## Executive Summary
+Successfully decomposed APT attack using Maltego CE visualization, identifying 6 distinct kill chain stages and critical entry points.
+
+## Key Findings
+- **Primary Attack Vector**: Spear-phishing email
+- **C2 Infrastructure**: 2 domains, 1 IP address
+- **Data at Risk**: 50,000 customer records
+- **Attack Duration**: Estimated 7-14 days
+
+## Recommendations
+1. Implement advanced email security
+2. Monitor identified IOCs
+3. Enhance network segmentation
+4. Deploy endpoint detection and response (EDR)
+
+## IOC Summary
+- Malicious domains: 2
+- IP addresses: 2
+- File hashes: 2
+- Registry keys: 1
+EOF
+Conclusion
+You have successfully completed a comprehensive kill chain decomposition using Maltego CE. This lab demonstrated how to:
+
+Visualize complex attack scenarios using graph-based analysis
+Map attack stages to the Cyber Kill Chain framework
+Identify critical entry points and attack infrastructure
+Generate actionable intelligence for threat mitigation
+This methodology is essential for threat intelligence analysts, incident responders, and security architects who need to understand and defend against advanced persistent threats. The visual analysis capabilities of Maltego CE provide crucial insights into attacker tactics, techniques, and procedures (TTPs) that traditional log analysis might miss.
+
+The skills developed in this lab directly apply to real-world threat hunting, incident response, and proactive defense strategies in enterprise security operations.
