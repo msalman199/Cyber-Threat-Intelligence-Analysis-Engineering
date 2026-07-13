@@ -1,0 +1,23 @@
+title: Suspicious HTTP Beaconing Pattern
+id: 87654321-4321-8765-cba9-987654321098
+description: Detects regular HTTP requests that may indicate C2 beaconing
+author: Lab Student
+date: 2024/01/01
+references:
+    - https://attack.mitre.org/techniques/T1071/001/
+logsource:
+    product: zeek
+    service: http
+detection:
+    selection:
+        host|contains:
+            - 'suspicious-c2'
+            - 'malware-command'
+            - 'backdoor-control'
+    condition: selection
+falsepositives:
+    - Legitimate applications with regular update checks
+level: high
+tags:
+    - attack.command_and_control
+    - attack.t1071.001
