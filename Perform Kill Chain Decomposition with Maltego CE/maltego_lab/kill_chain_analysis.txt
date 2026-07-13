@@ -1,0 +1,23 @@
+KILL CHAIN DECOMPOSITION ANALYSIS
+=================================
+
+ENTRY POINTS IDENTIFIED:
+1. Primary: Phishing email (security-alert@firstnationalbank.com)
+2. Secondary: Social media reconnaissance (LinkedIn)
+3. Infrastructure: Malicious domain (secure-banking-update.com)
+
+CRITICAL ATTACK PATH:
+Reconnaissance → Weaponization → Email Delivery → Exploitation → C2 Communication → Data Exfiltration
+
+MITIGATION RECOMMENDATIONS:
+- Email security controls for phishing detection
+- Domain reputation monitoring
+- Network segmentation to prevent C2 communication
+- Database access controls and monitoring
+- Employee security awareness training
+
+INDICATORS OF COMPROMISE (IOCs):
+- Domain: secure-banking-update.com
+- IP: 203.0.113.45
+- File: BankingUpdate.pdf.exe
+- C2 Domain: update-server.net
