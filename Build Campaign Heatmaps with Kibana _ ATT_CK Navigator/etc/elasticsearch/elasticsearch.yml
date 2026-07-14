@@ -1,0 +1,6 @@
+cluster.name: attack-analysis
+node.name: node-1
+network.host: localhost
+http.port: 9200
+discovery.type: single-node
+xpack.security.enabled: false
