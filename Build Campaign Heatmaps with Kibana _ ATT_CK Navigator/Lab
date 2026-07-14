@@ -1,0 +1,354 @@
+Build Campaign Heatmaps with Kibana & ATT&CK Navigator
+Learning Objectives
+By completing this lab, you will:
+
+Set up Kibana dashboards to track and visualize attack activity
+Build interactive heatmaps for campaign data visualization
+Use ATT&CK Navigator to correlate activities and identify high-risk areas
+Analyze threat patterns using open-source intelligence tools
+Prerequisites
+Basic understanding of cybersecurity concepts
+Familiarity with Linux command line
+Knowledge of MITRE ATT&CK framework fundamentals
+Understanding of JSON data structures
+Lab Environment
+Al Nafi provides a Linux-based cloud machine for this lab. Click Start Lab to access your environment. The machine comes with a bare metal installation, so you'll install all required tools during the lab exercises.
+
+Task 1: Set Up Kibana Dashboards to Track Attack Activity
+Subtask 1.1: Install Elasticsearch and Kibana
+Install Java (required for Elasticsearch):
+
+sudo apt update
+sudo apt install -y openjdk-11-jdk
+java -version
+Download and install Elasticsearch:
+
+wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-8.11.0-amd64.deb
+sudo dpkg -i elasticsearch-8.11.0-amd64.deb
+Configure Elasticsearch for single-node setup:
+
+sudo nano /etc/elasticsearch/elasticsearch.yml
+Add these configurations:
+
+cluster.name: attack-analysis
+node.name: node-1
+network.host: localhost
+http.port: 9200
+discovery.type: single-node
+xpack.security.enabled: false
+Start Elasticsearch:
+
+sudo systemctl enable elasticsearch
+sudo systemctl start elasticsearch
+sudo systemctl status elasticsearch
+Download and install Kibana:
+
+wget https://artifacts.elastic.co/downloads/kibana/kibana-8.11.0-amd64.deb
+sudo dpkg -i kibana-8.11.0-amd64.deb
+Configure Kibana:
+
+sudo nano /etc/kibana/kibana.yml
+Add these settings:
+
+server.port: 5601
+server.host: "localhost"
+elasticsearch.hosts: ["http://localhost:9200"]
+Start Kibana:
+
+sudo systemctl enable kibana
+sudo systemctl start kibana
+sudo systemctl status kibana
+Subtask 1.2: Create Sample Attack Data
+Create a directory for lab data:
+
+mkdir ~/attack-lab
+cd ~/attack-lab
+Generate sample attack data:
+
+cat > sample_attacks.json << 'EOF'
+{"timestamp":"2024-01-15T10:30:00","technique_id":"T1566.001","technique_name":"Spearphishing Attachment","tactic":"Initial Access","severity":"high","campaign":"APT29","source_ip":"192.168.1.100","target_ip":"10.0.0.50"}
+{"timestamp":"2024-01-15T10:35:00","technique_id":"T1059.001","technique_name":"PowerShell","tactic":"Execution","severity":"medium","campaign":"APT29","source_ip":"192.168.1.100","target_ip":"10.0.0.50"}
+{"timestamp":"2024-01-15T10:40:00","technique_id":"T1055","technique_name":"Process Injection","tactic":"Defense Evasion","severity":"high","campaign":"APT29","source_ip":"192.168.1.100","target_ip":"10.0.0.50"}
+{"timestamp":"2024-01-15T11:00:00","technique_id":"T1003.001","technique_name":"LSASS Memory","tactic":"Credential Access","severity":"critical","campaign":"APT29","source_ip":"192.168.1.100","target_ip":"10.0.0.50"}
+{"timestamp":"2024-01-15T11:15:00","technique_id":"T1021.001","technique_name":"Remote Desktop Protocol","tactic":"Lateral Movement","severity":"medium","campaign":"APT29","source_ip":"192.168.1.100","target_ip":"10.0.0.51"}
+{"timestamp":"2024-01-15T12:00:00","technique_id":"T1041","technique_name":"Exfiltration Over C2 Channel","tactic":"Exfiltration","severity":"critical","campaign":"APT29","source_ip":"192.168.1.100","target_ip":"10.0.0.51"}
+{"timestamp":"2024-01-16T09:30:00","technique_id":"T1566.002","technique_name":"Spearphishing Link","tactic":"Initial Access","severity":"high","campaign":"Lazarus","source_ip":"203.0.113.50","target_ip":"10.0.0.75"}
+{"timestamp":"2024-01-16T09:45:00","technique_id":"T1204.002","technique_name":"Malicious File","tactic":"Execution","severity":"high","campaign":"Lazarus","source_ip":"203.0.113.50","target_ip":"10.0.0.75"}
+{"timestamp":"2024-01-16T10:00:00","technique_id":"T1112","technique_name":"Modify Registry","tactic":"Defense Evasion","severity":"medium","campaign":"Lazarus","source_ip":"203.0.113.50","target_ip":"10.0.0.75"}
+{"timestamp":"2024-01-16T10:30:00","technique_id":"T1083","technique_name":"File and Directory Discovery","tactic":"Discovery","severity":"low","campaign":"Lazarus","source_ip":"203.0.113.50","target_ip":"10.0.0.75"}
+EOF
+Subtask 1.3: Index Data into Elasticsearch
+Install curl for API interactions:
+
+sudo apt install -y curl
+Create an index mapping:
+
+curl -X PUT "localhost:9200/attack-data" -H 'Content-Type: application/json' -d'
+{
+  "mappings": {
+    "properties": {
+      "timestamp": {"type": "date"},
+      "technique_id": {"type": "keyword"},
+      "technique_name": {"type": "text"},
+      "tactic": {"type": "keyword"},
+      "severity": {"type": "keyword"},
+      "campaign": {"type": "keyword"},
+      "source_ip": {"type": "ip"},
+      "target_ip": {"type": "ip"}
+    }
+  }
+}'
+Index the sample data:
+
+while IFS= read -r line; do
+  curl -X POST "localhost:9200/attack-data/_doc" -H 'Content-Type: application/json' -d "$line"
+done < sample_attacks.json
+Verify data indexing:
+
+curl -X GET "localhost:9200/attack-data/_search?pretty"
+Task 2: Build Heatmaps for Campaign Data Visualization
+Subtask 2.1: Access Kibana and Create Index Pattern
+Wait for Kibana to fully start (may take 2-3 minutes):
+
+curl -I http://localhost:5601
+Open a web browser and navigate to http://localhost:5601
+
+Create an index pattern:
+
+Click Stack Management → Index Patterns
+Click Create index pattern
+Enter attack-data* as the index pattern
+Click Next step
+Select timestamp as the time field
+Click Create index pattern
+Subtask 2.2: Create Campaign Activity Dashboard
+Navigate to Dashboard and click Create dashboard.
+
+Add a Data Table visualization:
+
+Click Create visualization
+Select Data table
+Configure:
+Rows: Add campaign.keyword
+Rows: Add tactic.keyword
+Metrics: Count
+Save as "Campaign Tactics Overview"
+Add a Heat Map visualization:
+
+Click Create visualization
+Select Heat map
+Configure:
+Y-axis: campaign.keyword
+X-axis: tactic.keyword
+Value: Count of records
+Save as "Campaign-Tactic Heatmap"
+Subtask 2.3: Create Technique Frequency Heatmap
+Create another heatmap:
+
+Click Create visualization
+Select Heat map
+Configure:
+Y-axis: technique_name.keyword
+X-axis: severity.keyword
+Value: Count
+Apply color scheme: Red for high values
+Save as "Technique Severity Heatmap"
+Add a timeline visualization:
+
+Click Create visualization
+Select Line
+Configure:
+X-axis: timestamp (Date Histogram, Interval: Hour)
+Y-axis: Count
+Split series: campaign.keyword
+Save as "Campaign Timeline"
+Task 3: Correlate Activity to Identify High-Risk Areas
+Subtask 3.1: Install ATT&CK Navigator
+Install Node.js and npm:
+
+curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+sudo apt-get install -y nodejs
+node --version
+npm --version
+Clone ATT&CK Navigator:
+
+cd ~/attack-lab
+git clone https://github.com/mitre-attack/attack-navigator.git
+cd attack-navigator/nav-app
+Install dependencies and build:
+
+npm install
+npm run build
+Start the Navigator:
+
+npm start &
+Subtask 3.2: Generate ATT&CK Layer from Kibana Data
+Create a script to export Kibana data:
+
+cd ~/attack-lab
+cat > export_attack_data.py << 'EOF'
+#!/usr/bin/env python3
+import json
+import requests
+from collections import defaultdict
+
+# Query Elasticsearch for attack data
+response = requests.get('http://localhost:9200/attack-data/_search?size=1000')
+data = response.json()
+
+# Process data for ATT&CK Navigator
+techniques = defaultdict(int)
+for hit in data['hits']['hits']:
+    source = hit['_source']
+    technique_id = source.get('technique_id', '')
+    if technique_id:
+        techniques[technique_id] += 1
+
+# Create ATT&CK Navigator layer
+layer = {
+    "name": "Campaign Analysis",
+    "versions": {
+        "attack": "14",
+        "navigator": "4.9.1",
+        "layer": "4.5"
+    },
+    "domain": "enterprise-attack",
+    "description": "Heatmap showing technique frequency from campaign data",
+    "techniques": []
+}
+
+# Add techniques with scores
+for technique_id, count in techniques.items():
+    layer["techniques"].append({
+        "techniqueID": technique_id,
+        "score": min(count * 20, 100),  # Scale score (max 100)
+        "color": "",
+        "comment": f"Observed {count} times",
+        "enabled": True,
+        "metadata": [],
+        "links": [],
+        "showSubtechniques": False
+    })
+
+# Save layer file
+with open('campaign_layer.json', 'w') as f:
+    json.dump(layer, f, indent=2)
+
+print(f"Created ATT&CK layer with {len(techniques)} techniques")
+print("Layer saved as campaign_layer.json")
+EOF
+
+chmod +x export_attack_data.py
+Install Python requests library and run the script:
+
+sudo apt install -y python3-pip
+pip3 install requests
+python3 export_attack_data.py
+Subtask 3.3: Analyze High-Risk Areas
+View the generated layer file:
+
+cat campaign_layer.json
+Create a risk analysis script:
+
+cat > risk_analysis.py << 'EOF'
+#!/usr/bin/env python3
+import json
+import requests
+from collections import Counter
+
+# Get data from Elasticsearch
+response = requests.get('http://localhost:9200/attack-data/_search?size=1000')
+data = response.json()
+
+# Analyze risk patterns
+campaigns = Counter()
+tactics = Counter()
+severity_counts = Counter()
+high_risk_techniques = []
+
+for hit in data['hits']['hits']:
+    source = hit['_source']
+    campaigns[source.get('campaign', 'Unknown')] += 1
+    tactics[source.get('tactic', 'Unknown')] += 1
+    severity_counts[source.get('severity', 'Unknown')] += 1
+    
+    if source.get('severity') in ['high', 'critical']:
+        high_risk_techniques.append({
+            'technique': source.get('technique_name', 'Unknown'),
+            'campaign': source.get('campaign', 'Unknown'),
+            'tactic': source.get('tactic', 'Unknown')
+        })
+
+print("=== RISK ANALYSIS REPORT ===")
+print(f"\nTop Campaigns by Activity:")
+for campaign, count in campaigns.most_common():
+    print(f"  {campaign}: {count} activities")
+
+print(f"\nMost Active Tactics:")
+for tactic, count in tactics.most_common():
+    print(f"  {tactic}: {count} techniques")
+
+print(f"\nSeverity Distribution:")
+for severity, count in severity_counts.most_common():
+    print(f"  {severity}: {count} incidents")
+
+print(f"\nHigh-Risk Techniques ({len(high_risk_techniques)} total):")
+for technique in high_risk_techniques[:5]:  # Show top 5
+    print(f"  {technique['technique']} ({technique['campaign']}) - {technique['tactic']}")
+
+# Calculate risk score
+critical_count = severity_counts.get('critical', 0)
+high_count = severity_counts.get('high', 0)
+total_incidents = sum(severity_counts.values())
+risk_score = ((critical_count * 3) + (high_count * 2)) / total_incidents * 100
+
+print(f"\nOverall Risk Score: {risk_score:.1f}/100")
+if risk_score > 70:
+    print("⚠️  HIGH RISK - Immediate attention required")
+elif risk_score > 40:
+    print("⚠️  MEDIUM RISK - Monitor closely")
+else:
+    print("✓ LOW RISK - Continue monitoring")
+EOF
+
+python3 risk_analysis.py
+Subtask 3.4: Create Correlation Dashboard
+Return to Kibana and create a correlation dashboard:
+
+Navigate to Dashboard → Create dashboard
+Add visualizations:
+Metric: Total incidents count
+Pie chart: Severity distribution
+Bar chart: Top techniques by campaign
+Tag cloud: Most frequent technique names
+Configure a Controls visualization:
+
+Add Options list control for campaign.keyword
+Add Range slider for timestamp
+Save dashboard as "Campaign Correlation Analysis"
+Create alerts by adding a Threshold visualization:
+
+Set threshold for critical severity > 2 incidents
+Configure red color for threshold breach
+Save as "Critical Alert Monitor"
+Verification Steps
+Verify your setup by checking:
+
+Elasticsearch status:
+curl -X GET "localhost:9200/_cluster/health?pretty"
+Kibana accessibility:
+curl -I http://localhost:5601
+Data indexing:
+curl -X GET "localhost:9200/attack-data/_count?pretty"
+ATT&CK Navigator:
+Navigate to http://localhost:4200
+Load the generated campaign_layer.json file
+Conclusion
+You have successfully built a comprehensive campaign analysis system using open-source tools. This lab demonstrated how to:
+
+Set up Elasticsearch and Kibana for security data analysis
+Create interactive heatmaps to visualize attack patterns
+Use ATT&CK Navigator to map techniques to the MITRE framework
+Correlate activities across campaigns to identify high-risk areas
+Generate automated risk assessments and alerts
+This approach enables security analysts to quickly identify threat patterns, prioritize response efforts, and understand the scope of ongoing campaigns. The combination of Kibana's visualization capabilities with ATT&CK Navigator's framework mapping provides a powerful platform for threat intelligence analysis and incident response planning.
