@@ -1,0 +1,14 @@
+{
+  "playbook_id": "",
+  "activity_group": "",
+  "creation_date": "",
+  "status": "active",
+  "hypothesis": "",
+  "techniques_observed": [],
+  "indicators": [],
+  "timeline": [],
+  "evidence": [],
+  "conclusions": "",
+  "confidence_level": "",
+  "next_actions": []
+}
