@@ -1,0 +1,907 @@
+ Correlate TLS Certs Across Campaigns Using crt.sh & Zeek
+Learning Objectives
+By completing this lab, you will:
+
+Extract TLS certificate data from crt.sh certificate transparency logs
+Analyze Zeek network logs to identify TLS connections and certificate fingerprints
+Correlate certificate patterns across multiple adversary campaigns
+Build infrastructure attribution maps using certificate commonalities
+Prerequisites
+Basic understanding of TLS/SSL certificates and PKI concepts
+Familiarity with Linux command line operations
+Knowledge of network traffic analysis fundamentals
+Understanding of JSON data structures
+Lab Environment
+Al Nafi provides a Linux-based cloud machine for this lab. Simply click Start Lab to access your dedicated environment. The machine comes as bare metal with no pre-installed tools, so you'll install all required components during the lab exercises.
+
+Task 1: Install Required Tools and Setup Environment
+Subtask 1.1: Install Dependencies
+# Update system packages
+sudo apt update && sudo apt upgrade -y
+
+# Install essential tools
+sudo apt install -y curl jq python3 python3-pip git build-essential
+
+# Install Zeek network security monitor
+sudo apt install -y zeek
+
+# Verify Zeek installation
+zeek --version
+Subtask 1.2: Setup Working Directory
+# Create lab workspace
+mkdir ~/tls-correlation-lab
+cd ~/tls-correlation-lab
+
+# Create subdirectories for organization
+mkdir {certs,zeek-logs,analysis,pcaps}
+Subtask 1.3: Install Python Libraries
+# Install required Python packages
+pip3 install requests pandas matplotlib seaborn
+Task 2: Search and Retrieve Certificates from crt.sh
+Subtask 2.1: Create Certificate Search Script
+# Create crt.sh query script
+cat > cert_search.py << 'EOF'
+#!/usr/bin/env python3
+import requests
+import json
+import sys
+import time
+
+def search_crtsh(domain, output_file):
+    """Search crt.sh for certificates associated with a domain"""
+    url = f"https://crt.sh/?q={domain}&output=json"
+    
+    try:
+        response = requests.get(url, timeout=30)
+        response.raise_for_status()
+        
+        certs = response.json()
+        print(f"Found {len(certs)} certificates for {domain}")
+        
+        # Save raw data
+        with open(f"certs/{output_file}", 'w') as f:
+            json.dump(certs, f, indent=2)
+            
+        return certs
+    except Exception as e:
+        print(f"Error searching for {domain}: {e}")
+        return []
+
+def extract_cert_details(certs, domain):
+    """Extract relevant certificate details"""
+    cert_details = []
+    
+    for cert in certs:
+        detail = {
+            'id': cert.get('id'),
+            'logged_at': cert.get('entry_timestamp'),
+            'not_before': cert.get('not_before'),
+            'not_after': cert.get('not_after'),
+            'common_name': cert.get('common_name'),
+            'name_value': cert.get('name_value'),
+            'issuer_name': cert.get('issuer_name'),
+            'serial_number': cert.get('serial_number'),
+            'domain_searched': domain
+        }
+        cert_details.append(detail)
+    
+    return cert_details
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("Usage: python3 cert_search.py <domain>")
+        sys.exit(1)
+    
+    domain = sys.argv[1]
+    output_file = f"{domain.replace('.', '_')}_certs.json"
+    
+    certs = search_crtsh(domain, output_file)
+    if certs:
+        details = extract_cert_details(certs, domain)
+        
+        # Save processed details
+        with open(f"analysis/{domain.replace('.', '_')}_details.json", 'w') as f:
+            json.dump(details, f, indent=2)
+        
+        print(f"Certificate details saved to analysis/{domain.replace('.', '_')}_details.json")
+EOF
+
+chmod +x cert_search.py
+Subtask 2.2: Search for Campaign-Related Domains
+# Search for certificates from known malicious domains (examples)
+python3 cert_search.py "malware-c2.com"
+python3 cert_search.py "phishing-site.net"
+python3 cert_search.py "apt-infrastructure.org"
+
+# Wait between requests to be respectful to crt.sh
+sleep 5
+Subtask 2.3: Create Certificate Analysis Script
+cat > analyze_certs.py << 'EOF'
+#!/usr/bin/env python3
+import json
+import os
+from collections import defaultdict
+import pandas as pd
+
+def load_cert_data():
+    """Load all certificate data from analysis directory"""
+    cert_data = []
+    
+    for filename in os.listdir('analysis'):
+        if filename.endswith('_details.json'):
+            with open(f'analysis/{filename}', 'r') as f:
+                data = json.load(f)
+                cert_data.extend(data)
+    
+    return cert_data
+
+def find_common_issuers(cert_data):
+    """Find common certificate issuers across campaigns"""
+    issuer_count = defaultdict(list)
+    
+    for cert in cert_data:
+        issuer = cert.get('issuer_name', 'Unknown')
+        domain = cert.get('domain_searched', 'Unknown')
+        issuer_count[issuer].append(domain)
+    
+    return issuer_count
+
+def find_serial_patterns(cert_data):
+    """Look for patterns in certificate serial numbers"""
+    serial_patterns = defaultdict(list)
+    
+    for cert in cert_data:
+        serial = cert.get('serial_number', '')
+        if serial:
+            # Group by first few characters of serial number
+            pattern = serial[:8] if len(serial) >= 8 else serial
+            serial_patterns[pattern].append({
+                'domain': cert.get('domain_searched'),
+                'full_serial': serial,
+                'issuer': cert.get('issuer_name')
+            })
+    
+    return serial_patterns
+
+def analyze_time_correlation(cert_data):
+    """Analyze certificate issuance timing"""
+    df = pd.DataFrame(cert_data)
+    df['not_before'] = pd.to_datetime(df['not_before'])
+    
+    # Group by domain and analyze timing
+    timing_analysis = df.groupby('domain_searched')['not_before'].agg(['min', 'max', 'count'])
+    
+    return timing_analysis
+
+if __name__ == "__main__":
+    print("Loading certificate data...")
+    cert_data = load_cert_data()
+    print(f"Loaded {len(cert_data)} certificates")
+    
+    print("\n=== Common Issuers Analysis ===")
+    issuers = find_common_issuers(cert_data)
+    for issuer, domains in issuers.items():
+        if len(set(domains)) > 1:  # Issuer used by multiple domains
+            print(f"Issuer: {issuer}")
+            print(f"  Domains: {set(domains)}")
+    
+    print("\n=== Serial Number Patterns ===")
+    patterns = find_serial_patterns(cert_data)
+    for pattern, certs in patterns.items():
+        if len(certs) > 1:
+            print(f"Pattern: {pattern}")
+            for cert in certs:
+                print(f"  {cert['domain']} - {cert['issuer']}")
+    
+    print("\n=== Timing Analysis ===")
+    timing = analyze_time_correlation(cert_data)
+    print(timing)
+EOF
+
+chmod +x analyze_certs.py
+Task 3: Generate and Analyze Zeek Logs for TLS Connections
+Subtask 3.1: Create Sample Network Traffic
+# Generate sample TLS traffic for analysis
+cat > generate_traffic.py << 'EOF'
+#!/usr/bin/env python3
+import subprocess
+import time
+
+def generate_tls_connections():
+    """Generate TLS connections to various sites"""
+    sites = [
+        "google.com",
+        "github.com",
+        "stackoverflow.com",
+        "badssl.com",
+        "expired.badssl.com"
+    ]
+    
+    for site in sites:
+        try:
+            print(f"Connecting to {site}...")
+            # Use curl to generate TLS traffic
+            subprocess.run(['curl', '-s', '-m', '10', f'https://{site}'], 
+                         capture_output=True, timeout=15)
+            time.sleep(2)
+        except Exception as e:
+            print(f"Error connecting to {site}: {e}")
+
+if __name__ == "__main__":
+    generate_tls_connections()
+EOF
+
+chmod +x generate_traffic.py
+Subtask 3.2: Capture Traffic with Zeek
+# Start Zeek in background to monitor traffic
+sudo zeek -i any -C local &
+ZEEK_PID=$!
+
+# Generate traffic
+python3 generate_traffic.py
+
+# Wait for traffic generation
+sleep 10
+
+# Stop Zeek
+sudo kill $ZEEK_PID
+
+# Move Zeek logs to our workspace
+sudo cp /opt/zeek/logs/current/*.log zeek-logs/ 2>/dev/null || true
+sudo chown $USER:$USER zeek-logs/*.log 2>/dev/null || true
+Subtask 3.3: Analyze Zeek SSL/TLS Logs
+cat > analyze_zeek_ssl.py << 'EOF'
+#!/usr/bin/env python3
+import pandas as pd
+import json
+from collections import defaultdict
+import os
+
+def load_zeek_ssl_log():
+    """Load and parse Zeek SSL log"""
+    ssl_file = 'zeek-logs/ssl.log'
+    
+    if not os.path.exists(ssl_file):
+        print("SSL log not found. Generating sample data...")
+        return create_sample_ssl_data()
+    
+    try:
+        # Read Zeek SSL log (tab-separated)
+        df = pd.read_csv(ssl_file, sep='\t', comment='#', 
+                        names=['ts', 'uid', 'id.orig_h', 'id.orig_p', 
+                              'id.resp_h', 'id.resp_p', 'version', 'cipher',
+                              'curve', 'server_name', 'resumed', 'last_alert',
+                              'next_protocol', 'established', 'cert_chain_fuids',
+                              'client_cert_chain_fuids', 'subject', 'issuer',
+                              'client_subject', 'client_issuer', 'validation_status'])
+        return df
+    except Exception as e:
+        print(f"Error reading SSL log: {e}")
+        return create_sample_ssl_data()
+
+def create_sample_ssl_data():
+    """Create sample SSL data for demonstration"""
+    sample_data = [
+        {
+            'ts': '1640995200.0',
+            'server_name': 'malware-c2.com',
+            'subject': 'CN=malware-c2.com',
+            'issuer': 'CN=Let\'s Encrypt Authority X3',
+            'cert_chain_fuids': 'FabcDef123456',
+            'validation_status': 'ok'
+        },
+        {
+            'ts': '1640995300.0',
+            'server_name': 'phishing-site.net',
+            'subject': 'CN=phishing-site.net',
+            'issuer': 'CN=Let\'s Encrypt Authority X3',
+            'cert_chain_fuids': 'FghiJkl789012',
+            'validation_status': 'ok'
+        },
+        {
+            'ts': '1640995400.0',
+            'server_name': 'apt-infrastructure.org',
+            'subject': 'CN=apt-infrastructure.org',
+            'issuer': 'CN=Let\'s Encrypt Authority X3',
+            'cert_chain_fuids': 'FmnoPqr345678',
+            'validation_status': 'ok'
+        }
+    ]
+    
+    return pd.DataFrame(sample_data)
+
+def extract_cert_fingerprints(df):
+    """Extract certificate fingerprints and metadata"""
+    cert_info = []
+    
+    for _, row in df.iterrows():
+        if pd.notna(row.get('cert_chain_fuids')):
+            cert_info.append({
+                'timestamp': row.get('ts'),
+                'server_name': row.get('server_name'),
+                'subject': row.get('subject'),
+                'issuer': row.get('issuer'),
+                'cert_fuid': row.get('cert_chain_fuids'),
+                'validation_status': row.get('validation_status')
+            })
+    
+    return cert_info
+
+def correlate_with_crtsh_data(zeek_certs):
+    """Correlate Zeek certificate data with crt.sh findings"""
+    correlations = []
+    
+    # Load crt.sh data
+    crtsh_data = []
+    for filename in os.listdir('analysis'):
+        if filename.endswith('_details.json'):
+            with open(f'analysis/{filename}', 'r') as f:
+                data = json.load(f)
+                crtsh_data.extend(data)
+    
+    # Find correlations
+    for zeek_cert in zeek_certs:
+        zeek_server = zeek_cert.get('server_name', '')
+        zeek_issuer = zeek_cert.get('issuer', '')
+        
+        for crtsh_cert in crtsh_data:
+            crtsh_cn = crtsh_cert.get('common_name', '')
+            crtsh_issuer = crtsh_cert.get('issuer_name', '')
+            
+            if zeek_server in crtsh_cn or crtsh_issuer in zeek_issuer:
+                correlations.append({
+                    'zeek_server': zeek_server,
+                    'zeek_issuer': zeek_issuer,
+                    'crtsh_domain': crtsh_cert.get('domain_searched'),
+                    'crtsh_issuer': crtsh_issuer,
+                    'correlation_type': 'issuer_match' if crtsh_issuer in zeek_issuer else 'domain_match'
+                })
+    
+    return correlations
+
+if __name__ == "__main__":
+    print("Loading Zeek SSL logs...")
+    ssl_df = load_zeek_ssl_log()
+    
+    print(f"Found {len(ssl_df)} SSL connections")
+    
+    cert_info = extract_cert_fingerprints(ssl_df)
+    print(f"Extracted {len(cert_info)} certificate records")
+    
+    # Save certificate info
+    with open('analysis/zeek_cert_info.json', 'w') as f:
+        json.dump(cert_info, f, indent=2)
+    
+    print("\n=== Zeek Certificate Analysis ===")
+    for cert in cert_info:
+        print(f"Server: {cert['server_name']}")
+        print(f"  Subject: {cert['subject']}")
+        print(f"  Issuer: {cert['issuer']}")
+        print(f"  FUID: {cert['cert_fuid']}")
+        print()
+    
+    print("=== Correlating with crt.sh data ===")
+    correlations = correlate_with_crtsh_data(cert_info)
+    
+    if correlations:
+        for corr in correlations:
+            print(f"Correlation found:")
+            print(f"  Zeek: {corr['zeek_server']} ({corr['zeek_issuer']})")
+            print(f"  crt.sh: {corr['crtsh_domain']} ({corr['crtsh_issuer']})")
+            print(f"  Type: {corr['correlation_type']}")
+            print()
+    else:
+        print("No direct correlations found in sample data")
+EOF
+
+chmod +x analyze_zeek_ssl.py
+Task 4: Identify Common Infrastructure Across Adversary Campaigns
+Subtask 4.1: Create Infrastructure Correlation Engine
+cat > infrastructure_correlation.py << 'EOF'
+#!/usr/bin/env python3
+import json
+import pandas as pd
+from collections import defaultdict, Counter
+import networkx as nx
+import matplotlib.pyplot as plt
+
+def load_all_data():
+    """Load all certificate and network data"""
+    data = {
+        'crtsh_certs': [],
+        'zeek_certs': []
+    }
+    
+    # Load crt.sh data
+    for filename in os.listdir('analysis'):
+        if filename.endswith('_details.json') and 'zeek' not in filename:
+            with open(f'analysis/{filename}', 'r') as f:
+                data['crtsh_certs'].extend(json.load(f))
+    
+    # Load Zeek data
+    zeek_file = 'analysis/zeek_cert_info.json'
+    if os.path.exists(zeek_file):
+        with open(zeek_file, 'r') as f:
+            data['zeek_certs'] = json.load(f)
+    
+    return data
+
+def find_infrastructure_patterns(data):
+    """Identify common infrastructure patterns"""
+    patterns = {
+        'common_issuers': defaultdict(set),
+        'timing_clusters': defaultdict(list),
+        'cert_authorities': Counter(),
+        'domain_clusters': defaultdict(set)
+    }
+    
+    # Analyze crt.sh data
+    for cert in data['crtsh_certs']:
+        issuer = cert.get('issuer_name', 'Unknown')
+        domain = cert.get('domain_searched', 'Unknown')
+        
+        patterns['common_issuers'][issuer].add(domain)
+        patterns['cert_authorities'][issuer] += 1
+        
+        # Group domains by issuer
+        patterns['domain_clusters'][issuer].add(domain)
+    
+    # Analyze Zeek data
+    for cert in data['zeek_certs']:
+        issuer = cert.get('issuer', 'Unknown')
+        server = cert.get('server_name', 'Unknown')
+        
+        patterns['common_issuers'][issuer].add(server)
+        patterns['cert_authorities'][issuer] += 1
+    
+    return patterns
+
+def create_infrastructure_graph(patterns):
+    """Create network graph of infrastructure relationships"""
+    G = nx.Graph()
+    
+    # Add nodes and edges based on common issuers
+    for issuer, domains in patterns['common_issuers'].items():
+        if len(domains) > 1:  # Only include issuers with multiple domains
+            G.add_node(issuer, node_type='issuer')
+            
+            for domain in domains:
+                G.add_node(domain, node_type='domain')
+                G.add_edge(issuer, domain)
+    
+    return G
+
+def generate_attribution_report(patterns, data):
+    """Generate comprehensive attribution report"""
+    report = {
+        'summary': {},
+        'high_confidence_links': [],
+        'medium_confidence_links': [],
+        'infrastructure_reuse': []
+    }
+    
+    # Summary statistics
+    report['summary'] = {
+        'total_certificates': len(data['crtsh_certs']) + len(data['zeek_certs']),
+        'unique_issuers': len(patterns['common_issuers']),
+        'domains_analyzed': len(set([cert.get('domain_searched') for cert in data['crtsh_certs']])),
+        'most_common_issuer': patterns['cert_authorities'].most_common(1)[0] if patterns['cert_authorities'] else ('None', 0)
+    }
+    
+    # High confidence links (same issuer, close timing)
+    for issuer, domains in patterns['common_issuers'].items():
+        if len(domains) > 1:
+            report['high_confidence_links'].append({
+                'issuer': issuer,
+                'linked_domains': list(domains),
+                'confidence': 'high' if len(domains) > 2 else 'medium'
+            })
+    
+    # Infrastructure reuse analysis
+    issuer_usage = [(issuer, len(domains)) for issuer, domains in patterns['common_issuers'].items()]
+    issuer_usage.sort(key=lambda x: x[1], reverse=True)
+    
+    report['infrastructure_reuse'] = issuer_usage[:5]  # Top 5
+    
+    return report
+
+def visualize_infrastructure(G):
+    """Create visualization of infrastructure relationships"""
+    plt.figure(figsize=(12, 8))
+    
+    # Position nodes
+    pos = nx.spring_layout(G, k=1, iterations=50)
+    
+    # Separate node types
+    issuer_nodes = [node for node, attr in G.nodes(data=True) if attr.get('node_type') == 'issuer']
+    domain_nodes = [node for node, attr in G.nodes(data=True) if attr.get('node_type') == 'domain']
+    
+    # Draw nodes
+    nx.draw_networkx_nodes(G, pos, nodelist=issuer_nodes, node_color='red', 
+                          node_size=500, alpha=0.7, label='Certificate Issuers')
+    nx.draw_networkx_nodes(G, pos, nodelist=domain_nodes, node_color='blue', 
+                          node_size=300, alpha=0.7, label='Domains')
+    
+    # Draw edges
+    nx.draw_networkx_edges(G, pos, alpha=0.5)
+    
+    # Draw labels
+    nx.draw_networkx_labels(G, pos, font_size=8)
+    
+    plt.title('Certificate Infrastructure Correlation Map')
+    plt.legend()
+    plt.axis('off')
+    plt.tight_layout()
+    plt.savefig('analysis/infrastructure_map.png', dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    print("Infrastructure map saved to analysis/infrastructure_map.png")
+
+if __name__ == "__main__":
+    print("Loading all certificate data...")
+    data = load_all_data()
+    
+    print("Analyzing infrastructure patterns...")
+    patterns = find_infrastructure_patterns(data)
+    
+    print("Creating infrastructure graph...")
+    G = create_infrastructure_graph(patterns)
+    
+    print("Generating attribution report...")
+    report = generate_attribution_report(patterns, data)
+    
+    # Save report
+    with open('analysis/attribution_report.json', 'w') as f:
+        json.dump(report, f, indent=2)
+    
+    print("\n=== INFRASTRUCTURE ATTRIBUTION REPORT ===")
+    print(f"Total Certificates Analyzed: {report['summary']['total_certificates']}")
+    print(f"Unique Certificate Issuers: {report['summary']['unique_issuers']}")
+    print(f"Domains Analyzed: {report['summary']['domains_analyzed']}")
+    print(f"Most Common Issuer: {report['summary']['most_common_issuer'][0]} ({report['summary']['most_common_issuer'][1]} certs)")
+    
+    print("\n=== HIGH CONFIDENCE INFRASTRUCTURE LINKS ===")
+    for link in report['high_confidence_links']:
+        print(f"Issuer: {link['issuer']}")
+        print(f"  Linked Domains: {', '.join(link['linked_domains'])}")
+        print(f"  Confidence: {link['confidence']}")
+        print()
+    
+    print("=== TOP INFRASTRUCTURE REUSE ===")
+    for issuer, count in report['infrastructure_reuse']:
+        print(f"{issuer}: {count} domains")
+    
+    # Create visualization
+    if len(G.nodes()) > 0:
+        visualize_infrastructure(G)
+    else:
+        print("No infrastructure relationships found for visualization")
+    
+    print(f"\nFull report saved to analysis/attribution_report.json")
+EOF
+
+chmod +x infrastructure_correlation.py
+Subtask 4.2: Run Complete Analysis Pipeline
+# Run certificate analysis
+echo "=== Analyzing Certificate Data ==="
+python3 analyze_certs.py
+
+# Run Zeek SSL analysis
+echo "=== Analyzing Zeek SSL Logs ==="
+python3 analyze_zeek_ssl.py
+
+# Run infrastructure correlation
+echo "=== Running Infrastructure Correlation ==="
+python3 infrastructure_correlation.py
+Subtask 4.3: Create Campaign Timeline Analysis
+cat > timeline_analysis.py << 'EOF'
+#!/usr/bin/env python3
+import json
+import pandas as pd
+import matplotlib.pyplot as plt
+from datetime import datetime
+import os
+
+def create_campaign_timeline():
+    """Create timeline of certificate activities across campaigns"""
+    
+    # Load all certificate data
+    all_certs = []
+    
+    for filename in os.listdir('analysis'):
+        if filename.endswith('_details.json') and 'zeek' not in filename:
+            with open(f'analysis/{filename}', 'r') as f:
+                certs = json.load(f)
+                all_certs.extend(certs)
+    
+    if not all_certs:
+        print("No certificate data found for timeline analysis")
+        return
+    
+    # Convert to DataFrame
+    df = pd.DataFrame(all_certs)
+    
+    # Convert timestamps
+    df['not_before'] = pd.to_datetime(df['not_before'])
+    df['logged_at'] = pd.to_datetime(df['logged_at'])
+    
+    # Create timeline visualization
+    plt.figure(figsize=(14, 8))
+    
+    # Plot certificate issuance by domain
+    domains = df['domain_searched'].unique()
+    colors = plt.cm.Set3(range(len(domains)))
+    
+    for i, domain in enumerate(domains):
+        domain_certs = df[df['domain_searched'] == domain]
+        plt.scatter(domain_certs['not_before'], [i] * len(domain_certs), 
+                   c=[colors[i]], label=domain, alpha=0.7, s=50)
+    
+    plt.yticks(range(len(domains)), domains)
+    plt.xlabel('Certificate Issue Date')
+    plt.ylabel('Campaign Domain')
+    plt.title('Certificate Issuance Timeline Across Campaigns')
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig('analysis/campaign_timeline.png', dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    print("Campaign timeline saved to analysis/campaign_timeline.png")
+    
+    # Generate timeline summary
+    timeline_summary = {
+        'earliest_cert': df['not_before'].min().isoformat(),
+        'latest_cert': df['not_before'].max().isoformat(),
+        'total_timespan_days': (df['not_before'].max() - df['not_before'].min()).days,
+        'certs_per_domain': df.groupby('domain_searched').size().to_dict(),
+        'monthly_activity': df.groupby(df['not_before'].dt.to_period('M')).size().to_dict()
+    }
+    
+    # Convert Period objects to strings for JSON serialization
+    timeline_summary['monthly_activity'] = {str(k): v for k, v in timeline_summary['monthly_activity'].items()}
+    
+    with open('analysis/timeline_summary.json', 'w') as f:
+        json.dump(timeline_summary, f, indent=2)
+    
+    print("Timeline summary saved to analysis/timeline_summary.json")
+    
+    return timeline_summary
+
+if __name__ == "__main__":
+    summary = create_campaign_timeline()
+    if summary:
+        print("\n=== CAMPAIGN TIMELINE SUMMARY ===")
+        print(f"Analysis Period: {summary['earliest_cert']} to {summary['latest_cert']}")
+        print(f"Total Timespan: {summary['total_timespan_days']} days")
+        print("\nCertificates per Domain:")
+        for domain, count in summary['certs_per_domain'].items():
+            print(f"  {domain}: {count} certificates")
+EOF
+
+chmod +x timeline_analysis.py
+
+# Run timeline analysis
+python3 timeline_analysis.py
+Task 5: Generate Final Correlation Report
+Subtask 5.1: Create Comprehensive Report Generator
+cat > final_report.py << 'EOF'
+#!/usr/bin/env python3
+import json
+import os
+from datetime import datetime
+
+def generate_final_report():
+    """Generate comprehensive correlation report"""
+    
+    report_data = {}
+    
+    # Load all analysis results
+    analysis_files = {
+        'attribution_report.json': 'infrastructure_attribution',
+        'timeline_summary.json': 'timeline_analysis',
+        'zeek_cert_info.json': 'network_analysis'
+    }
+    
+    for filename, key in analysis_files.items():
+        filepath = f'analysis/{filename}'
+        if os.path.exists(filepath):
+            with open(filepath, 'r') as f:
+                report_data[key] = json.load(f)
+    
+    # Generate executive summary
+    executive_summary = generate_executive_summary(report_data)
+    
+    # Create final report structure
+    final_report = {
+        'report_metadata': {
+            'generated_at': datetime.now().isoformat(),
+            'lab_name': 'TLS Certificate Correlation Analysis',
+            'analysis_scope': 'Multi-campaign infrastructure attribution'
+        },
+        'executive_summary': executive_summary,
+        'detailed_findings': report_data,
+        'recommendations': generate_recommendations(report_data),
+        'iocs': extract_iocs(report_data)
+    }
+    
+    # Save final report
+    with open('analysis/FINAL_CORRELATION_REPORT.json', 'w') as f:
+        json.dump(final_report, f, indent=2)
+    
+    # Generate human-readable report
+    generate_readable_report(final_report)
+    
+    return final_report
+
+def generate_executive_summary(data):
+    """Generate executive summary of findings"""
+    summary = {
+        'key_findings': [],
+        'infrastructure_overlap': 0,
+        'campaign_correlation_confidence': 'medium',
+        'threat_actor_attribution': 'possible'
+    }
+    
+    if 'infrastructure_attribution' in data:
+        infra_data = data['infrastructure_attribution']
+        
+        if 'high_confidence_links' in infra_data:
+            high_conf_links = len(infra_data['high_confidence_links'])
+            if high_conf_links > 0:
+                summary['key_findings'].append(f"Found {high_conf_links} high-confidence infrastructure links")
+                summary['campaign_correlation_confidence'] = 'high'
+        
+        if 'summary' in infra_data:
+            total_certs = infra_data['summary'].get('total_certificates', 0)
+            unique_issuers = infra_data['summary'].get('unique_issuers', 0)
+            
+            summary['key_findings'].append(f"Analyzed {total_certs} certificates from {unique_issuers} issuers")
+    
+    if 'timeline_analysis' in data:
+        timeline_data = data['timeline_analysis']
+        timespan = timeline_data.get('total_timespan_days', 0)
+        
+        if timespan > 0:
+            summary['key_findings'].append(f"Campaign activity spans {timespan} days")
+    
+    return summary
+
+def generate_recommendations(data):
+    """Generate security recommendations based on findings"""
+    recommendations = [
+        "Monitor certificate transparency logs for similar infrastructure patterns",
+        "Implement certificate pinning for critical applications",
+        "Set up alerts for certificates issued by suspicious CAs",
+        "Correlate certificate data with other threat intelligence sources"
+    ]
+    
+    if 'infrastructure_attribution' in data:
+        infra_data = data['infrastructure_attribution']
+        if infra_data.get('high_confidence_links'):
+            recommendations.append("Block identified malicious certificate authorities")
+            recommendations.append("Implement DNS sinkholing for correlated domains")
+    
+    return recommendations
+
+def extract_iocs(data):
+    """Extract Indicators of Compromise from analysis"""
+    iocs = {
+        'domains': [],
+        'certificate_issuers': [],
+        'certificate_serials': []
+    }
+    
+    if 'infrastructure_attribution' in data:
+        infra_data = data['infrastructure_attribution']
+        
+        for link in infra_data.get('high_confidence_links', []):
+            iocs['domains'].extend(link.get('linked_domains', []))
+            iocs['certificate_issuers'].append(link.get('issuer', ''))
+    
+    # Remove duplicates
+    iocs['domains'] = list(set(iocs['domains']))
+    iocs['certificate_issuers'] = list(set(filter(None, iocs['certificate_issuers'])))
+    
+    return iocs
+
+def generate_readable_report(report):
+    """Generate human-readable report"""
+    
+    readable_report = f"""
+# TLS Certificate Correlation Analysis Report
+
+**Generated:** {report['report_metadata']['generated_at']}
+
+## Executive Summary
+
+{chr(10).join(f"• {finding}" for finding in report['executive_summary']['key_findings'])}
+
+**Campaign Correlation Confidence:** {report['executive_summary']['campaign_correlation_confidence'].upper()}
+
+## Key Indicators of Compromise (IOCs)
+
+### Malicious Domains
+{chr(10).join(f"• {domain}" for domain in report['iocs']['domains'])}
+
+### Suspicious Certificate Issuers
+{chr(10).join(f"• {issuer}" for issuer in report['iocs']['certificate_issuers'])}
+
+## Security Recommendations
+
+{chr(10).join(f"{i+1}. {rec}" for i, rec in enumerate(report['recommendations']))}
+
+## Analysis Artifacts Generated
+
+• Infrastructure correlation map: analysis/infrastructure_map.png
+• Campaign timeline: analysis/campaign_timeline.png
+• Detailed JSON reports in analysis/ directory
+
+---
+*This report was generated using open-source tools: crt.sh API, Zeek network monitor, and Python analysis scripts.*
+"""
+    
+    with open('analysis/CORRELATION_REPORT.md', 'w') as f:
+        f.write(readable_report)
+    
+    print("Human-readable report saved to analysis/CORRELATION_REPORT.md")
+
+if __name__ == "__main__":
+    print("Generating final correlation report...")
+    report = generate_final_report()
+    
+    print("\n" + "="*60)
+    print("FINAL CORRELATION ANALYSIS COMPLETE")
+    print("="*60)
+    
+    print(f"\nExecutive Summary:")
+    for finding in report['executive_summary']['key_findings']:
+        print(f"  • {finding}")
+    
+    print(f"\nCorrelation Confidence: {report['executive_summary']['campaign_correlation_confidence'].upper()}")
+    
+    print(f"\nIOCs Identified:")
+    print(f"  • Domains: {len(report['iocs']['domains'])}")
+    print(f"  • Certificate Issuers: {len(report['iocs']['certificate_issuers'])}")
+    
+    print(f"\nReports Generated:")
+    print(f"  • analysis/FINAL_CORRELATION_REPORT.json")
+    print(f"  • analysis/CORRELATION_REPORT.md")
+    
+    if os.path.exists('analysis/infrastructure_map.png'):
+        print(f"  • analysis/infrastructure_map.png")
+    if os.path.exists('analysis/campaign_timeline.png'):
+        print(f"  • analysis/campaign_timeline.png")
+EOF
+
+chmod +x final_report.py
+
+# Generate final report
+python3 final_report.py
+Subtask 5.2: View Results and Artifacts
+# Display final results
+echo "=== ANALYSIS COMPLETE ==="
+echo "Generated files:"
+ls -la analysis/
+
+echo -e "\n=== FINAL REPORT SUMMARY ==="
+if [ -f "analysis/CORRELATION_REPORT.md" ]; then
+    cat analysis/CORRELATION_REPORT.md
+else
+    echo "Report file not found. Check analysis directory."
+fi
+
+# Show directory structure
+echo -e "\n=== LAB WORKSPACE STRUCTURE ==="
+tree . 2>/dev/null || find . -type f | sort
+Conclusion
+You have successfully completed a comprehensive TLS certificate correlation analysis across multiple adversary campaigns. Through this lab, you:
+
+Extracted certificate intelligence from crt.sh certificate transparency logs using automated queries
+Analyzed network traffic with Zeek to identify TLS connections and certificate fingerprints
+Correlated infrastructure patterns by identifying common certificate authorities, timing patterns, and domain relationships
+Built attribution maps connecting disparate campaigns through shared certificate infrastructure
+Generated actionable intelligence including IOCs, confidence assessments, and security recommendations
+This methodology demonstrates how certificate transparency data combined with network monitoring can reveal adversary infrastructure reuse patterns, enabling proactive threat hunting and campaign attribution. The techniques learned here are essential for advanced threat intelligence analysis and can be applied to real-world incident response and threat hunting scenarios.
+
+The correlation approach you've mastered helps security teams identify previously unknown malicious infrastructure and predict adversary expansion patterns, significantly enhancing organizational defensive capabilities.
