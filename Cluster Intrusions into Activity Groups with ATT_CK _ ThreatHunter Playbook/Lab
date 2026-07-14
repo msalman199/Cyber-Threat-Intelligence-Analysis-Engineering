@@ -1,0 +1,587 @@
+Cluster Intrusions into Activity Groups with ATT&CK + ThreatHunter Playbook
+Learning Objectives
+By completing this lab, you will:
+
+Apply MITRE ATT&CK framework to cluster related intrusion activities
+Use ThreatHunter Playbook methodology for systematic incident tracking
+Map attack paths and group activities using open-source tools
+Analyze threat intelligence data to identify activity group patterns
+Prerequisites
+Basic understanding of cybersecurity concepts
+Familiarity with Linux command line
+Knowledge of network protocols and log analysis
+Understanding of threat intelligence fundamentals
+Lab Environment
+Al Nafi provides a Linux-based cloud machine for this lab. Click Start Lab to access your environment. The machine is bare metal with no pre-installed tools, so you will install all required tools during the lab.
+
+Task 1: Set Up Analysis Environment and Install Tools
+Subtask 1.1: Update System and Install Dependencies
+# Update system packages
+sudo apt update && sudo apt upgrade -y
+
+# Install required dependencies
+sudo apt install -y python3 python3-pip git curl wget jq unzip
+sudo apt install -y build-essential libssl-dev libffi-dev python3-dev
+
+# Install additional analysis tools
+sudo apt install -y sqlite3 graphviz
+Subtask 1.2: Install MITRE ATT&CK Navigator
+# Clone ATT&CK Navigator
+cd /opt
+sudo git clone https://github.com/mitre-attack/attack-navigator.git
+cd attack-navigator
+
+# Install Node.js and npm
+curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+sudo apt-get install -y nodejs
+
+# Install Navigator dependencies
+sudo npm install
+sudo npm run build
+Subtask 1.3: Set Up ThreatHunter Playbook Environment
+# Create working directory
+mkdir -p ~/threat-analysis
+cd ~/threat-analysis
+
+# Install Python libraries for threat analysis
+pip3 install pandas numpy matplotlib seaborn networkx
+pip3 install requests beautifulsoup4 python-dateutil
+pip3 install stix2 taxii2-client
+
+# Download sample threat intelligence data
+wget https://raw.githubusercontent.com/mitre/cti/master/enterprise-attack/enterprise-attack.json
+Task 2: Apply ATT&CK Techniques to Cluster Intrusion Sets
+Subtask 2.1: Create Sample Intrusion Data
+# Create sample intrusion dataset
+cat > ~/threat-analysis/intrusion_data.json << 'EOF'
+{
+  "intrusions": [
+    {
+      "id": "INT001",
+      "timestamp": "2024-01-15T10:30:00Z",
+      "techniques": ["T1566.001", "T1059.001", "T1055", "T1083"],
+      "indicators": ["malicious.exe", "192.168.1.100", "suspicious.dll"],
+      "target_sector": "financial"
+    },
+    {
+      "id": "INT002", 
+      "timestamp": "2024-01-16T14:20:00Z",
+      "techniques": ["T1566.001", "T1059.003", "T1055", "T1070.004"],
+      "indicators": ["phish.doc", "192.168.1.100", "cleanup.bat"],
+      "target_sector": "financial"
+    },
+    {
+      "id": "INT003",
+      "timestamp": "2024-01-18T09:15:00Z", 
+      "techniques": ["T1190", "T1505.003", "T1083", "T1041"],
+      "indicators": ["webshell.php", "10.0.0.50", "data.zip"],
+      "target_sector": "healthcare"
+    },
+    {
+      "id": "INT004",
+      "timestamp": "2024-01-20T16:45:00Z",
+      "techniques": ["T1566.002", "T1059.001", "T1055", "T1083"],
+      "indicators": ["malware.exe", "192.168.1.100", "recon.dll"],
+      "target_sector": "financial"
+    }
+  ]
+}
+EOF
+Subtask 2.2: Create Clustering Analysis Script
+cat > ~/threat-analysis/cluster_analysis.py << 'EOF'
+#!/usr/bin/env python3
+import json
+import pandas as pd
+from collections import Counter
+import numpy as np
+from sklearn.cluster import KMeans
+from sklearn.feature_extraction.text import TfidfVectorizer
+import matplotlib.pyplot as plt
+
+def load_intrusion_data(file_path):
+    """Load intrusion data from JSON file"""
+    with open(file_path, 'r') as f:
+        data = json.load(f)
+    return pd.DataFrame(data['intrusions'])
+
+def create_technique_features(df):
+    """Create feature vectors based on ATT&CK techniques"""
+    # Convert techniques list to string for vectorization
+    df['technique_string'] = df['techniques'].apply(lambda x: ' '.join(x))
+    
+    # Create TF-IDF vectors for techniques
+    vectorizer = TfidfVectorizer()
+    technique_vectors = vectorizer.fit_transform(df['technique_string'])
+    
+    return technique_vectors, vectorizer
+
+def cluster_intrusions(df, n_clusters=2):
+    """Cluster intrusions based on technique similarity"""
+    technique_vectors, vectorizer = create_technique_features(df)
+    
+    # Apply K-means clustering
+    kmeans = KMeans(n_clusters=n_clusters, random_state=42)
+    clusters = kmeans.fit_predict(technique_vectors.toarray())
+    
+    df['cluster'] = clusters
+    return df, kmeans, vectorizer
+
+def analyze_clusters(df):
+    """Analyze cluster characteristics"""
+    print("=== CLUSTER ANALYSIS RESULTS ===\n")
+    
+    for cluster_id in df['cluster'].unique():
+        cluster_data = df[df['cluster'] == cluster_id]
+        print(f"CLUSTER {cluster_id}:")
+        print(f"  Intrusions: {len(cluster_data)}")
+        
+        # Most common techniques
+        all_techniques = []
+        for techniques in cluster_data['techniques']:
+            all_techniques.extend(techniques)
+        common_techniques = Counter(all_techniques).most_common(3)
+        print(f"  Top Techniques: {common_techniques}")
+        
+        # Target sectors
+        sectors = cluster_data['target_sector'].value_counts()
+        print(f"  Target Sectors: {sectors.to_dict()}")
+        
+        # Common indicators
+        all_indicators = []
+        for indicators in cluster_data['indicators']:
+            all_indicators.extend(indicators)
+        common_indicators = Counter(all_indicators).most_common(3)
+        print(f"  Common Indicators: {common_indicators}")
+        print()
+
+def main():
+    # Load and analyze data
+    df = load_intrusion_data('intrusion_data.json')
+    print(f"Loaded {len(df)} intrusion records\n")
+    
+    # Perform clustering
+    clustered_df, kmeans, vectorizer = cluster_intrusions(df)
+    
+    # Analyze results
+    analyze_clusters(clustered_df)
+    
+    # Save results
+    clustered_df.to_csv('clustered_intrusions.csv', index=False)
+    print("Results saved to clustered_intrusions.csv")
+
+if __name__ == "__main__":
+    main()
+EOF
+
+chmod +x ~/threat-analysis/cluster_analysis.py
+Subtask 2.3: Run Clustering Analysis
+cd ~/threat-analysis
+
+# Install required Python packages
+pip3 install scikit-learn
+
+# Run clustering analysis
+python3 cluster_analysis.py
+Task 3: Use ThreatHunter Playbook for Incident Tracking
+Subtask 3.1: Create ThreatHunter Playbook Structure
+# Create playbook directory structure
+mkdir -p ~/threat-analysis/playbooks/{templates,active,completed}
+
+# Create playbook template
+cat > ~/threat-analysis/playbooks/templates/activity_group_template.json << 'EOF'
+{
+  "playbook_id": "",
+  "activity_group": "",
+  "creation_date": "",
+  "status": "active",
+  "hypothesis": "",
+  "techniques_observed": [],
+  "indicators": [],
+  "timeline": [],
+  "evidence": [],
+  "conclusions": "",
+  "confidence_level": "",
+  "next_actions": []
+}
+EOF
+Subtask 3.2: Create Playbook Management Script
+cat > ~/threat-analysis/playbook_manager.py << 'EOF'
+#!/usr/bin/env python3
+import json
+import os
+from datetime import datetime
+import uuid
+
+class ThreatHunterPlaybook:
+    def __init__(self, base_dir="playbooks"):
+        self.base_dir = base_dir
+        self.template_dir = os.path.join(base_dir, "templates")
+        self.active_dir = os.path.join(base_dir, "active")
+        self.completed_dir = os.path.join(base_dir, "completed")
+    
+    def create_playbook(self, activity_group, hypothesis, techniques):
+        """Create new threat hunting playbook"""
+        playbook_id = str(uuid.uuid4())[:8]
+        
+        # Load template
+        with open(os.path.join(self.template_dir, "activity_group_template.json"), 'r') as f:
+            playbook = json.load(f)
+        
+        # Fill template
+        playbook.update({
+            "playbook_id": playbook_id,
+            "activity_group": activity_group,
+            "creation_date": datetime.now().isoformat(),
+            "hypothesis": hypothesis,
+            "techniques_observed": techniques
+        })
+        
+        # Save active playbook
+        filename = f"{activity_group}_{playbook_id}.json"
+        filepath = os.path.join(self.active_dir, filename)
+        
+        with open(filepath, 'w') as f:
+            json.dump(playbook, f, indent=2)
+        
+        print(f"Created playbook: {filename}")
+        return playbook_id
+    
+    def update_playbook(self, playbook_id, updates):
+        """Update existing playbook"""
+        # Find playbook file
+        for filename in os.listdir(self.active_dir):
+            if playbook_id in filename:
+                filepath = os.path.join(self.active_dir, filename)
+                
+                with open(filepath, 'r') as f:
+                    playbook = json.load(f)
+                
+                playbook.update(updates)
+                
+                with open(filepath, 'w') as f:
+                    json.dump(playbook, f, indent=2)
+                
+                print(f"Updated playbook: {filename}")
+                return True
+        
+        print(f"Playbook {playbook_id} not found")
+        return False
+    
+    def list_active_playbooks(self):
+        """List all active playbooks"""
+        print("=== ACTIVE THREAT HUNTING PLAYBOOKS ===\n")
+        
+        for filename in os.listdir(self.active_dir):
+            if filename.endswith('.json'):
+                filepath = os.path.join(self.active_dir, filename)
+                
+                with open(filepath, 'r') as f:
+                    playbook = json.load(f)
+                
+                print(f"ID: {playbook['playbook_id']}")
+                print(f"Group: {playbook['activity_group']}")
+                print(f"Status: {playbook['status']}")
+                print(f"Hypothesis: {playbook['hypothesis']}")
+                print(f"Techniques: {', '.join(playbook['techniques_observed'])}")
+                print("-" * 50)
+
+def main():
+    # Initialize playbook manager
+    pb_manager = ThreatHunterPlaybook()
+    
+    # Create playbooks based on clustering results
+    print("Creating threat hunting playbooks...\n")
+    
+    # Cluster 0 - Financial sector attacks
+    pb_id1 = pb_manager.create_playbook(
+        activity_group="APT-Financial-001",
+        hypothesis="Coordinated spear-phishing campaign targeting financial institutions",
+        techniques=["T1566.001", "T1059.001", "T1055", "T1083"]
+    )
+    
+    # Cluster 1 - Web-based attacks
+    pb_id2 = pb_manager.create_playbook(
+        activity_group="WebShell-Group-001", 
+        hypothesis="Web application exploitation for persistent access",
+        techniques=["T1190", "T1505.003", "T1083", "T1041"]
+    )
+    
+    # Update playbooks with additional evidence
+    pb_manager.update_playbook(pb_id1, {
+        "indicators": ["192.168.1.100", "malicious.exe", "suspicious.dll"],
+        "confidence_level": "Medium",
+        "evidence": ["Multiple intrusions from same IP", "Similar malware families"]
+    })
+    
+    pb_manager.update_playbook(pb_id2, {
+        "indicators": ["10.0.0.50", "webshell.php", "data.zip"],
+        "confidence_level": "High", 
+        "evidence": ["Web shell deployment", "Data exfiltration patterns"]
+    })
+    
+    # List all active playbooks
+    pb_manager.list_active_playbooks()
+
+if __name__ == "__main__":
+    main()
+EOF
+
+chmod +x ~/threat-analysis/playbook_manager.py
+Subtask 3.3: Execute Playbook Management
+cd ~/threat-analysis
+
+# Run playbook manager
+python3 playbook_manager.py
+Task 4: Map Attack Paths and Group Activities
+Subtask 4.1: Create Attack Path Visualization
+cat > ~/threat-analysis/attack_path_mapper.py << 'EOF'
+#!/usr/bin/env python3
+import json
+import networkx as nx
+import matplotlib.pyplot as plt
+from collections import defaultdict
+
+def load_attack_data():
+    """Load ATT&CK technique data"""
+    attack_techniques = {
+        "T1566.001": {"name": "Spearphishing Attachment", "tactic": "Initial Access"},
+        "T1566.002": {"name": "Spearphishing Link", "tactic": "Initial Access"},
+        "T1190": {"name": "Exploit Public-Facing Application", "tactic": "Initial Access"},
+        "T1059.001": {"name": "PowerShell", "tactic": "Execution"},
+        "T1059.003": {"name": "Windows Command Shell", "tactic": "Execution"},
+        "T1055": {"name": "Process Injection", "tactic": "Defense Evasion"},
+        "T1505.003": {"name": "Web Shell", "tactic": "Persistence"},
+        "T1083": {"name": "File and Directory Discovery", "tactic": "Discovery"},
+        "T1070.004": {"name": "File Deletion", "tactic": "Defense Evasion"},
+        "T1041": {"name": "Exfiltration Over C2 Channel", "tactic": "Exfiltration"}
+    }
+    return attack_techniques
+
+def create_attack_graph(intrusion_data, attack_techniques):
+    """Create attack path graph"""
+    G = nx.DiGraph()
+    
+    # Load intrusion data
+    with open(intrusion_data, 'r') as f:
+        data = json.load(f)
+    
+    # Group techniques by cluster
+    cluster_techniques = defaultdict(list)
+    
+    # Read clustered results
+    import pandas as pd
+    df = pd.read_csv('clustered_intrusions.csv')
+    
+    for _, row in df.iterrows():
+        cluster = row['cluster']
+        techniques = eval(row['techniques'])  # Convert string back to list
+        cluster_techniques[cluster].extend(techniques)
+    
+    # Create nodes and edges for each cluster
+    colors = ['lightblue', 'lightcoral', 'lightgreen', 'lightyellow']
+    
+    for cluster_id, techniques in cluster_techniques.items():
+        # Remove duplicates and sort by typical attack sequence
+        unique_techniques = list(set(techniques))
+        
+        # Add nodes
+        for technique in unique_techniques:
+            if technique in attack_techniques:
+                G.add_node(technique, 
+                          name=attack_techniques[technique]['name'],
+                          tactic=attack_techniques[technique]['tactic'],
+                          cluster=cluster_id,
+                          color=colors[cluster_id % len(colors)])
+        
+        # Add edges based on typical attack flow
+        for i in range(len(unique_techniques) - 1):
+            if unique_techniques[i] in attack_techniques and unique_techniques[i+1] in attack_techniques:
+                G.add_edge(unique_techniques[i], unique_techniques[i+1])
+    
+    return G
+
+def visualize_attack_paths(G):
+    """Visualize attack paths"""
+    plt.figure(figsize=(15, 10))
+    
+    # Create layout
+    pos = nx.spring_layout(G, k=3, iterations=50)
+    
+    # Get node colors by cluster
+    node_colors = [G.nodes[node].get('color', 'lightgray') for node in G.nodes()]
+    
+    # Draw graph
+    nx.draw(G, pos, 
+            node_color=node_colors,
+            node_size=2000,
+            font_size=8,
+            font_weight='bold',
+            arrows=True,
+            arrowsize=20,
+            edge_color='gray',
+            with_labels=True)
+    
+    # Add technique names as labels
+    labels = {node: f"{node}\n{G.nodes[node].get('name', '')[:20]}" 
+              for node in G.nodes()}
+    
+    plt.title("Attack Path Mapping by Activity Groups", fontsize=16, fontweight='bold')
+    plt.axis('off')
+    plt.tight_layout()
+    plt.savefig('attack_paths.png', dpi=300, bbox_inches='tight')
+    plt.show()
+    
+    print("Attack path visualization saved as 'attack_paths.png'")
+
+def generate_attack_report(G):
+    """Generate attack path analysis report"""
+    print("=== ATTACK PATH ANALYSIS REPORT ===\n")
+    
+    # Cluster analysis
+    clusters = defaultdict(list)
+    for node in G.nodes():
+        cluster = G.nodes[node].get('cluster', 'unknown')
+        clusters[cluster].append(node)
+    
+    for cluster_id, techniques in clusters.items():
+        print(f"ACTIVITY GROUP {cluster_id}:")
+        print(f"  Techniques Used: {len(techniques)}")
+        
+        # Group by tactic
+        tactics = defaultdict(list)
+        for technique in techniques:
+            tactic = G.nodes[technique].get('tactic', 'Unknown')
+            tactics[tactic].append(technique)
+        
+        print("  Tactics Coverage:")
+        for tactic, techs in tactics.items():
+            print(f"    {tactic}: {len(techs)} techniques")
+        
+        # Calculate centrality
+        subgraph = G.subgraph(techniques)
+        if len(subgraph.nodes()) > 1:
+            centrality = nx.degree_centrality(subgraph)
+            most_central = max(centrality, key=centrality.get)
+            print(f"  Key Technique: {most_central} ({G.nodes[most_central]['name']})")
+        
+        print()
+
+def main():
+    # Load attack technique data
+    attack_techniques = load_attack_data()
+    
+    # Create attack graph
+    G = create_attack_graph('intrusion_data.json', attack_techniques)
+    
+    # Generate analysis report
+    generate_attack_report(G)
+    
+    # Create visualization
+    visualize_attack_paths(G)
+
+if __name__ == "__main__":
+    main()
+EOF
+
+chmod +x ~/threat-analysis/attack_path_mapper.py
+Subtask 4.2: Execute Attack Path Analysis
+cd ~/threat-analysis
+
+# Install additional visualization libraries
+pip3 install networkx matplotlib
+
+# Run attack path mapping
+python3 attack_path_mapper.py
+Subtask 4.3: Create Activity Group Summary
+# Create comprehensive analysis summary
+cat > ~/threat-analysis/generate_summary.py << 'EOF'
+#!/usr/bin/env python3
+import json
+import pandas as pd
+from datetime import datetime
+
+def generate_activity_group_summary():
+    """Generate comprehensive activity group analysis summary"""
+    
+    print("=" * 60)
+    print("THREAT INTELLIGENCE ANALYSIS SUMMARY")
+    print("=" * 60)
+    print(f"Analysis Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print()
+    
+    # Load clustered data
+    df = pd.read_csv('clustered_intrusions.csv')
+    
+    print("IDENTIFIED ACTIVITY GROUPS:")
+    print("-" * 30)
+    
+    for cluster in df['cluster'].unique():
+        cluster_data = df[df['cluster'] == cluster]
+        
+        print(f"\nActivity Group {cluster}:")
+        print(f"  Intrusion Count: {len(cluster_data)}")
+        print(f"  Time Range: {cluster_data['timestamp'].min()} to {cluster_data['timestamp'].max()}")
+        
+        # Extract unique techniques
+        all_techniques = []
+        for techniques_str in cluster_data['techniques']:
+            techniques = eval(techniques_str)
+            all_techniques.extend(techniques)
+        unique_techniques = list(set(all_techniques))
+        
+        print(f"  Unique Techniques: {len(unique_techniques)}")
+        print(f"  Technique List: {', '.join(unique_techniques)}")
+        
+        # Target analysis
+        targets = cluster_data['target_sector'].value_counts()
+        print(f"  Primary Targets: {targets.to_dict()}")
+        
+        # Threat level assessment
+        if len(cluster_data) >= 3 and len(unique_techniques) >= 4:
+            threat_level = "HIGH"
+        elif len(cluster_data) >= 2:
+            threat_level = "MEDIUM"
+        else:
+            threat_level = "LOW"
+        
+        print(f"  Threat Level: {threat_level}")
+    
+    print("\n" + "=" * 60)
+    print("RECOMMENDATIONS:")
+    print("=" * 60)
+    print("1. Implement monitoring for identified techniques")
+    print("2. Enhance detection rules for clustered activity patterns")
+    print("3. Share IOCs with threat intelligence community")
+    print("4. Update incident response playbooks")
+    print("5. Conduct threat hunting based on identified patterns")
+
+if __name__ == "__main__":
+    generate_activity_group_summary()
+EOF
+
+python3 ~/threat-analysis/generate_summary.py
+Verification and Results
+View Analysis Results
+cd ~/threat-analysis
+
+# List all generated files
+echo "=== GENERATED ANALYSIS FILES ==="
+ls -la *.csv *.png *.json
+
+# View playbook structure
+echo -e "\n=== ACTIVE PLAYBOOKS ==="
+ls -la playbooks/active/
+
+# Display final summary
+echo -e "\n=== FINAL ANALYSIS ==="
+python3 generate_summary.py
+Conclusion
+In this lab, you successfully:
+
+Clustered intrusion activities using MITRE ATT&CK techniques and machine learning algorithms
+Implemented ThreatHunter Playbook methodology for systematic incident tracking and analysis
+Mapped attack paths and visualized activity group behaviors using network analysis
+Generated comprehensive threat intelligence reports linking related intrusions to activity groups
+This approach enables security analysts to identify patterns in threat actor behavior, improve detection capabilities, and develop targeted defense strategies. The combination of ATT&CK framework mapping and systematic playbook methodology provides a structured approach to threat intelligence analysis that scales across enterprise environments.
+
+The skills developed in this lab are essential for threat intelligence analysts, security researchers, and incident response teams working to understand and counter advanced persistent threats.
