@@ -1,0 +1,246 @@
+Investigate Adversary Infrastructure with Amass + Shodan
+Learning Objectives
+By completing this lab, you will:
+
+Install and configure Amass for domain enumeration and infrastructure mapping
+Utilize Shodan API for exposed system reconnaissance
+Correlate data from multiple sources to build comprehensive adversary infrastructure profiles
+Analyze attack surfaces and potential security vulnerabilities
+Prerequisites
+Basic Linux command-line knowledge
+Understanding of DNS concepts and network fundamentals
+Familiarity with cybersecurity reconnaissance principles
+Active internet connection for API queries
+Lab Environment
+Al Nafi provides Linux-based cloud machines for this lab. Simply click Start Lab to access your dedicated environment. The provided Linux machine is bare metal with no pre-installed tools, so you will install all required tools during the lab exercises.
+
+Task 1: Set up Amass to Gather Domain and Infrastructure Data
+Subtask 1.1: Install Amass and Dependencies
+Update system packages and install required tools:
+
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y golang-go git curl wget
+Install Amass from source:
+
+go install -v github.com/owasp-amass/amass/v4/...@master
+echo 'export PATH=$PATH:$(go env GOPATH)/bin' >> ~/.bashrc
+source ~/.bashrc
+Verify installation:
+
+amass version
+Subtask 1.2: Configure Amass Data Sources
+Create Amass configuration directory and file:
+
+mkdir -p ~/.config/amass
+cat > ~/.config/amass/config.ini << 'EOF'
+[data_sources]
+minimum_ttl = 1440
+
+[data_sources.AlienVault]
+[data_sources.Censys]
+[data_sources.CertSpotter]
+[data_sources.Crtsh]
+[data_sources.DNSRecon]
+[data_sources.HackerTarget]
+[data_sources.Riddler]
+[data_sources.ThreatCrowd]
+[data_sources.VirusTotal]
+[data_sources.Wayback]
+
+[bruteforce]
+enabled = true
+recursive = true
+minimum_for_recursive = 1
+EOF
+Subtask 1.3: Perform Domain Enumeration
+Create a target domain list for testing:
+
+echo "example.com" > targets.txt
+echo "github.com" >> targets.txt
+echo "microsoft.com" >> targets.txt
+Run Amass enumeration:
+
+amass enum -d example.com -o amass_results.txt
+Run passive enumeration with additional sources:
+
+amass enum -passive -d example.com -o amass_passive.txt
+View results:
+
+cat amass_results.txt | head -20
+wc -l amass_results.txt
+Task 2: Use Shodan to Scan for Exposed Systems
+Subtask 2.1: Install Shodan CLI
+Install Python pip and Shodan:
+
+sudo apt install -y python3-pip
+pip3 install shodan
+echo 'export PATH=$PATH:~/.local/bin' >> ~/.bashrc
+source ~/.bashrc
+Subtask 2.2: Configure Shodan API
+Create a free Shodan account at shodan.io and obtain your API key. Initialize Shodan CLI:
+
+shodan init YOUR_API_KEY_HERE
+Test Shodan connectivity:
+
+shodan info
+Subtask 2.3: Search for Infrastructure Data
+Search for systems by organization:
+
+shodan search "org:Microsoft" --limit 10 > shodan_microsoft.txt
+cat shodan_microsoft.txt
+Search for specific services:
+
+shodan search "apache" --limit 5
+shodan search "nginx" --limit 5
+Search by IP range (example):
+
+shodan search "net:8.8.8.0/24" --limit 5
+Download host information:
+
+shodan host 8.8.8.8 > host_info.txt
+cat host_info.txt
+Task 3: Correlate Data to Map Adversary Infrastructure
+Subtask 3.1: Extract IP Addresses from Amass Results
+Create script to resolve domains to IPs:
+
+cat > resolve_domains.sh << 'EOF'
+#!/bin/bash
+echo "Resolving domains to IP addresses..."
+while read domain; do
+    ip=$(dig +short $domain | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+    if [ ! -z "$ip" ]; then
+        echo "$domain,$ip"
+    fi
+done < amass_results.txt > domain_ip_mapping.csv
+EOF
+
+chmod +x resolve_domains.sh
+./resolve_domains.sh
+View IP mappings:
+
+head -10 domain_ip_mapping.csv
+Subtask 3.2: Cross-Reference with Shodan Data
+Create correlation script:
+
+cat > correlate_data.py << 'EOF'
+#!/usr/bin/env python3
+import csv
+import subprocess
+import json
+import time
+
+def get_shodan_info(ip):
+    try:
+        result = subprocess.run(['shodan', 'host', ip], 
+                              capture_output=True, text=True, timeout=10)
+        if result.returncode == 0:
+            return result.stdout
+        return None
+    except:
+        return None
+
+print("Domain,IP,Shodan_Info")
+with open('domain_ip_mapping.csv', 'r') as f:
+    for line in f:
+        if ',' in line:
+            domain, ip = line.strip().split(',', 1)
+            shodan_info = get_shodan_info(ip)
+            if shodan_info:
+                # Extract key information
+                lines = shodan_info.split('\n')
+                ports = [l for l in lines if 'Ports:' in l]
+                org = [l for l in lines if 'Organization:' in l]
+                
+                info_summary = f"Ports: {ports[0] if ports else 'N/A'} | Org: {org[0] if org else 'N/A'}"
+                print(f"{domain},{ip},{info_summary}")
+            else:
+                print(f"{domain},{ip},No Shodan data")
+            time.sleep(1)  # Rate limiting
+EOF
+
+chmod +x correlate_data.py
+python3 correlate_data.py > infrastructure_map.csv
+Subtask 3.3: Generate Infrastructure Report
+Create comprehensive analysis script:
+
+cat > generate_report.sh << 'EOF'
+#!/bin/bash
+echo "=== ADVERSARY INFRASTRUCTURE ANALYSIS REPORT ===" > final_report.txt
+echo "Generated on: $(date)" >> final_report.txt
+echo "" >> final_report.txt
+
+echo "=== DOMAIN ENUMERATION SUMMARY ===" >> final_report.txt
+echo "Total domains discovered: $(wc -l < amass_results.txt)" >> final_report.txt
+echo "Passive enumeration results: $(wc -l < amass_passive.txt)" >> final_report.txt
+echo "" >> final_report.txt
+
+echo "=== TOP 10 DISCOVERED DOMAINS ===" >> final_report.txt
+head -10 amass_results.txt >> final_report.txt
+echo "" >> final_report.txt
+
+echo "=== IP ADDRESS MAPPINGS ===" >> final_report.txt
+echo "Domain to IP mappings found: $(wc -l < domain_ip_mapping.csv)" >> final_report.txt
+head -5 domain_ip_mapping.csv >> final_report.txt
+echo "" >> final_report.txt
+
+echo "=== INFRASTRUCTURE CORRELATION ===" >> final_report.txt
+head -10 infrastructure_map.csv >> final_report.txt
+echo "" >> final_report.txt
+
+echo "=== ANALYSIS COMPLETE ===" >> final_report.txt
+EOF
+
+chmod +x generate_report.sh
+./generate_report.sh
+View the final report:
+
+cat final_report.txt
+Subtask 3.4: Identify Attack Surfaces
+Create attack surface analysis:
+
+cat > attack_surface.sh << 'EOF'
+#!/bin/bash
+echo "=== ATTACK SURFACE ANALYSIS ===" > attack_surface.txt
+echo "" >> attack_surface.txt
+
+echo "Unique IP addresses identified:" >> attack_surface.txt
+cut -d',' -f2 domain_ip_mapping.csv | sort -u | wc -l >> attack_surface.txt
+echo "" >> attack_surface.txt
+
+echo "Unique domains identified:" >> attack_surface.txt
+wc -l < amass_results.txt >> attack_surface.txt
+echo "" >> attack_surface.txt
+
+echo "Potential entry points (subdomains):" >> attack_surface.txt
+grep -E "(admin|test|dev|staging|api|mail|ftp)" amass_results.txt | head -10 >> attack_surface.txt
+echo "" >> attack_surface.txt
+EOF
+
+chmod +x attack_surface.sh
+./attack_surface.sh
+cat attack_surface.txt
+Verification and Testing
+Verify all components are working:
+
+# Check Amass installation
+amass version
+
+# Check Shodan CLI
+shodan info
+
+# Verify output files exist
+ls -la *.txt *.csv
+
+# Display summary statistics
+echo "Files created:"
+echo "- Amass results: $(wc -l < amass_results.txt) domains"
+echo "- IP mappings: $(wc -l < domain_ip_mapping.csv) entries"
+echo "- Infrastructure map: $(wc -l < infrastructure_map.csv) correlations"
+Conclusion
+You have successfully completed an advanced adversary infrastructure investigation using Amass and Shodan. This lab demonstrated how to:
+
+Enumerate domains using OSINT techniques with Amass
+Gather intelligence on exposed systems using Shodan API
+Correlate data from multiple sources to build comprehensive infrastructure maps
+Analyze attack surfaces to identify potential security vulnerabilities
+These skills are essential for threat intelligence analysts, penetration testers, and security researchers who need to understand adversary infrastructure and potential attack vectors. The combination of passive reconnaissance tools provides a powerful methodology for mapping organizational digital footprints and identifying security exposures without direct interaction with target systems.
