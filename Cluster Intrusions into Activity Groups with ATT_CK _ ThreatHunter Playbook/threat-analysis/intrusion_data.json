@@ -1,0 +1,32 @@
+{
+  "intrusions": [
+    {
+      "id": "INT001",
+      "timestamp": "2024-01-15T10:30:00Z",
+      "techniques": ["T1566.001", "T1059.001", "T1055", "T1083"],
+      "indicators": ["malicious.exe", "192.168.1.100", "suspicious.dll"],
+      "target_sector": "financial"
+    },
+    {
+      "id": "INT002", 
+      "timestamp": "2024-01-16T14:20:00Z",
+      "techniques": ["T1566.001", "T1059.003", "T1055", "T1070.004"],
+      "indicators": ["phish.doc", "192.168.1.100", "cleanup.bat"],
+      "target_sector": "financial"
+    },
+    {
+      "id": "INT003",
+      "timestamp": "2024-01-18T09:15:00Z", 
+      "techniques": ["T1190", "T1505.003", "T1083", "T1041"],
+      "indicators": ["webshell.php", "10.0.0.50", "data.zip"],
+      "target_sector": "healthcare"
+    },
+    {
+      "id": "INT004",
+      "timestamp": "2024-01-20T16:45:00Z",
+      "techniques": ["T1566.002", "T1059.001", "T1055", "T1083"],
+      "indicators": ["malware.exe", "192.168.1.100", "recon.dll"],
+      "target_sector": "financial"
+    }
+  ]
+}
